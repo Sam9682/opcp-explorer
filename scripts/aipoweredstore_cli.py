@@ -765,7 +765,7 @@ def install_as_systemctl_service():
     import shutil
     
     # Load PLTF_FOLDER from deploy.ini
-    pltf_folder = 'opcp-explorer'
+    pltf_folder = 'opcp-ai-powered-store'
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'conf', 'deploy.ini')
     if os.path.exists(config_path):
         try:
@@ -818,7 +818,7 @@ WantedBy=multi-user.target
         sys.exit(1)
     except PermissionError:
         click.echo('✗ Permission denied. Run with sudo:')
-        click.echo('  sudo python3 ./scripts/opcpexplorer_cli.py install-as-systemctl-service')
+        click.echo('  sudo python3 ./scripts/aipoweredstore_cli.py install-as-systemctl-service')
         sys.exit(1)
     except Exception as e:
         click.echo(f'✗ Error: {str(e)}')

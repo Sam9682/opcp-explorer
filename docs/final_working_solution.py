@@ -11,7 +11,7 @@ class MarketingPDF(FPDF):
     def __init__(self):
         super().__init__()
         # Set a simple ASCII title to avoid Unicode issues in PDF metadata
-        self.document_title = "OPCP Explorer - Marketing Document"
+        self.document_title = "OPCP AI-Powered Store - Marketing Document"
 
     def header(self):
         self.set_font('Arial', 'B', 16)

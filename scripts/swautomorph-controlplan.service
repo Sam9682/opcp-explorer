@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=forking
 # Note: Paths below use the default PLTF_FOLDER value.
-# Use 'opcpexplorer_cli.py install-as-systemctl-service' to generate with correct paths from deploy.ini
+# Use 'aipoweredstore_cli.py install-as-systemctl-service' to generate with correct paths from deploy.ini
 ExecStart=/home/ubuntu/opcp-explorer/scripts/start_swautomorph_controlplan.sh
 ExecStop=/home/ubuntu/opcp-explorer/scripts/stop_swautomorph_controlplan.sh
 WorkingDirectory=/home/ubuntu/opcp-explorer

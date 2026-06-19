@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# OPCP-Explorer Production Deployment Script
+# OPCP-OPCP-Explorer Production Deployment Script
 # Organized with functions for better maintainability
 
 set -e
@@ -63,12 +63,12 @@ WARN="${YELLOW}[WARN]${NC}"
 INFO="${BLUE}[INFO]${NC}"
 
 # Global Variables (with fallback defaults)
-NAME_OF_APPLICATION=${NAME_OF_APPLICATION:-"OPCP-Explorer"}
+NAME_OF_APPLICATION=${NAME_OF_APPLICATION:-"opcp-OPCP-Explorer"}
 APPLICATION_IDENTITY_NUMBER=${APPLICATION_IDENTITY_NUMBER:-0}
 RANGE_START_CONTROLPLAN=${RANGE_START_CONTROLPLAN:-80}
 RANGE_RESERVED_CONTROLPLAN=${RANGE_RESERVED_CONTROLPLAN:-0}
 S3_BUCKET_NAME=${S3_BUCKET_NAME:-"opcp-psmc-s3"}
-PLTF_FOLDER=${PLTF_FOLDER:-"opcp-explorer"}
+PLTF_FOLDER=${PLTF_FOLDER:-"opcp-ai-powered-store"}
 
 # Global Parameters (command line args override config)
 COMMAND=${1:-help}
@@ -1579,7 +1579,7 @@ start_flask_application() {
         export USE_POSTGRES=true
         export PYTHONPATH=/home/ubuntu/${NAME_OF_APPLICATION}
 
-        if python3 ./scripts/opcpexplorer_cli.py init-db; then
+        if python3 ./scripts/aipoweredstore_cli.py init-db; then
             echo "  ✅ Database initialized successfully"
         else
             echo "  ⚠️ Database initialization failed - continuing anyway"
@@ -2048,7 +2048,7 @@ EOF
 
 # Show usage information
 help() {
-    echo "🚀 OPCP-Explorer Deployment Script v${VERSION}"
+    echo "🚀 OPCP-OPCP-Explorer Deployment Script v${VERSION}"
     echo "Usage: $0 [COMMAND] [MODE] [USER_ID] [USER_NAME] [USER_EMAIL] [DESCRIPTION] [OPTIONS]"
     echo ""
     echo "COMMANDS:"
@@ -2280,7 +2280,7 @@ main() {
             exit 0
             ;;
         "version"|"--version"|"-v")
-            echo "OPCP-Explorer v${VERSION}"
+            echo "OPCP-OPCP-Explorer v${VERSION}"
             exit 0
             ;;
         *)
