@@ -1,8 +1,8 @@
-# OPCP AI-Powered Store
+# OPCP Explorer
 
 ## Objective
 
-OPCP AI-Powered Store is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
+OPCP Explorer is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
 
 **Core Purpose**: Enable GenAI agents to autonomously deploy, manage, and access web applications without human intervention.
 
@@ -66,7 +66,7 @@ which python3 && which pip && which docker && which docker-compose
 ### Interactive Deployment (Recommended)
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/opcp-ai-powered-store.git
+git clone https://github.com/your-repo/opcp-explorer.git
 cd <PLTF_FOLDER>
 
 # Interactive deployment with menu selection

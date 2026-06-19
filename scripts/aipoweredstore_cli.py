@@ -765,7 +765,7 @@ def install_as_systemctl_service():
     import shutil
     
     # Load PLTF_FOLDER from deploy.ini
-    pltf_folder = 'opcp-ai-powered-store'
+    pltf_folder = 'opcp-explorer'
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'conf', 'deploy.ini')
     if os.path.exists(config_path):
         try:

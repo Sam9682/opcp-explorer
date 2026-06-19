@@ -11,7 +11,7 @@ from fpdf import FPDF
 class MarketingPDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'OPCP AI-Powered Store - Marketing Document', 0, 1, 'C')
+        self.cell(0, 10, 'OPCP Explorer - Marketing Document', 0, 1, 'C')
         self.set_font('Arial', '', 10)
         self.cell(0, 10, f'Generated on {datetime.now().strftime("%Y-%m-%d")}', 0, 1, 'C')
         self.ln(10)

@@ -69,7 +69,7 @@ def get_platform_folder():
                     return line.split('=', 1)[1].strip().strip("'\"")
     except Exception as e:
         logger.error(f'Failed to read PLTF_FOLDER from deploy.ini: {e}')
-    return 'opcp-ai-powered-store'
+    return 'opcp-explorer'
 
 # Domain name from deploy.ini
 def get_domain_name():
@@ -239,7 +239,7 @@ TRANSLATIONS = {
         'mission_statement': 'Welcome to the next evolution of GenAI impact. After replacing IT developers, <strong>agentic AI will now replace entire IT companies</strong> that develop software.',
         'target_title': 'Built for Forward-Thinking Businesses',
         'restaurants_title': 'Restaurants & Hospitality',
-        'restaurants_desc': 'Manage your digital ecosystem with AI-powered virtual developers',
+        'restaurants_desc': 'Manage your digital ecosystem with OPCP-Explorer virtual developers',
         'small_business_title': 'Small Businesses',
         'small_business_desc': 'Get enterprise-level software development without the enterprise costs',
         'entrepreneurs_title': 'Entrepreneurs',
@@ -384,7 +384,7 @@ TRANSLATIONS = {
         'unlimited_scalability_desc': 'Handle multiple projects simultaneously',
         'always_learning': 'Always Learning',
         'always_learning_desc': 'AI agents improve with every interaction',
-        'disruption_warning': "The IT industry is being disrupted RIGHT NOW. Companies using AI agents are moving 10x faster than those still relying on human IT teams. Don't get left behind. !!! You can implement ai-powered-store platform on your own environment !!!",
+        'disruption_warning': "The IT industry is being disrupted RIGHT NOW. Companies using AI agents are moving 10x faster than those still relying on human IT teams. Don't get left behind. !!! You can implement OPCP-Explorer platform on your own environment !!!",
         'configuration': 'Configuration',
         'user_management': 'User Management',
         'server_management': 'Server Management',
@@ -655,7 +655,7 @@ TRANSLATIONS = {
         'unlimited_scalability_desc': 'Gérer plusieurs projets simultanément',
         'always_learning': 'Apprentissage Continu',
         'always_learning_desc': 'Les agents IA en auto amélioration à chaque interaction',
-        'disruption_warning': "Une industrie IT est en cours de disruption MAINTENANT. Les entreprises utilisant des agents IA avancent 10 fois plus vite que celles qui dépendent encore d'équipes IT humaines. Ne vous laissez pas distancer. !!! Vous pouvez implémenter ai-powered-store dans votre environnement !!!",
+        'disruption_warning': "Une industrie IT est en cours de disruption MAINTENANT. Les entreprises utilisant des agents IA avancent 10 fois plus vite que celles qui dépendent encore d'équipes IT humaines. Ne vous laissez pas distancer. !!! Vous pouvez implémenter OPCP-Explorer dans votre environnement !!!",
         'configuration': 'Configuration',
         'user_management': 'Gestion des Utilisateurs',
         'server_management': 'Gestion des Serveurs',

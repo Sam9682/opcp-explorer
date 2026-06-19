@@ -1,4 +1,4 @@
-# OPCP AI-Powered Store — Sales Pitch
+# OPCP Explorer — Sales Pitch
 
 ## Professional Service Labs for OCPC Customers
 
@@ -16,7 +16,7 @@ Your customers are building AI workloads. They need GPU compute, but:
 
 ---
 
-## The Solution: OPCP AI-Powered Store for OPCP Core Baremetal Platform
+## The Solution: OPCP Explorer for OPCP Core Baremetal Platform
 
 A turnkey platform that lets your OCPC customers **deploy, manage, and share GPU resources** through a single interface — Web, CLI, API, or AI agents.
 
@@ -136,4 +136,4 @@ docker run --gpus '"device=MIG-xxx"' my-ai-model:latest
 
 ---
 
-*OPCP AI-Powered Store — Making GPU compute accessible, shareable, and autonomous.*
+*OPCP Explorer — Making GPU compute accessible, shareable, and autonomous.*

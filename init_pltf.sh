@@ -25,7 +25,7 @@ print_warning() {
 }
 
 echo -e "${BLUE}+==========================================+${NC}"
-echo -e "${BLUE}|${NC}   ai-powered-store Platform Setup    ${BLUE}|${NC}"
+echo -e "${BLUE}|${NC}   OPCP-explorer Platform Setup    ${BLUE}|${NC}"
 echo -e "${BLUE}+==========================================+${NC}"
 echo ""
 

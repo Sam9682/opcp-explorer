@@ -1,4 +1,4 @@
-"""GenAI routes for AI-powered deployment and development operations"""
+"""GenAI routes for OPCP Explorer deployment and development operations"""
 from flask import Blueprint, request, jsonify, session, stream_with_context
 import os
 import json

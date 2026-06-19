@@ -1,8 +1,8 @@
-# AI-Powered-Store
+# OPCP-Explorer
 
 ## Objective
 
-AI-Powered-Store is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
+OPCP-Explorer is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
 
 **Core Purpose**: Enable GenAI agents to autonomously deploy, manage, and access web applications without human intervention.
 
