@@ -29,7 +29,6 @@ logs/
 # Environment and secrets
 .env
 *.env
-conf/deploy.ini
 
 # SSL certificates
 ssl/

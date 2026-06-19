@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# OPCP-OPCP-Explorer Production Deployment Script
+# OPCP-Explorer Production Deployment Script
 # Organized with functions for better maintainability
 
 set -e
@@ -63,12 +63,12 @@ WARN="${YELLOW}[WARN]${NC}"
 INFO="${BLUE}[INFO]${NC}"
 
 # Global Variables (with fallback defaults)
-NAME_OF_APPLICATION=${NAME_OF_APPLICATION:-"opcp-OPCP-Explorer"}
+NAME_OF_APPLICATION=${NAME_OF_APPLICATION:-"OPCP-Explorer"}
 APPLICATION_IDENTITY_NUMBER=${APPLICATION_IDENTITY_NUMBER:-0}
 RANGE_START_CONTROLPLAN=${RANGE_START_CONTROLPLAN:-80}
 RANGE_RESERVED_CONTROLPLAN=${RANGE_RESERVED_CONTROLPLAN:-0}
 S3_BUCKET_NAME=${S3_BUCKET_NAME:-"opcp-psmc-s3"}
-PLTF_FOLDER=${PLTF_FOLDER:-"opcp-ai-powered-store"}
+PLTF_FOLDER=${PLTF_FOLDER:-"opcp-explorer"}
 
 # Global Parameters (command line args override config)
 COMMAND=${1:-help}
@@ -79,13 +79,13 @@ USER_EMAIL=${5:-${DEFAULT_USER_EMAIL:-"admin@softfluid.fr"}}
 DESCRIPTION=${6:-${DEFAULT_DESCRIPTION:-"Basic Admin user for Control Plan"}}
 
 # Configuration (loaded from deploy.ini with fallback defaults)
-DOMAIN=${DOMAIN:-"softfluid.fr"}
-EMAIL=${EMAIL:-"admin@softfluid.fr"}
+DOMAIN=${DOMAIN:-"opcp-psmc.com"}
+EMAIL=${EMAIL:-"admin@opcp-psmc.com"}
 ENV_FILE=${ENV_FILE:-".env.prod"}
 GITEA_VERSION=${GITEA_VERSION:-"1.21.3"}
 GITEA_ADMIN_USER=${GITEA_ADMIN_USER:-"gitadmin"}
 GITEA_ADMIN_PASSWORD=${GITEA_ADMIN_PASSWORD:-"password"}
-GITEA_ADMIN_EMAIL=${GITEA_ADMIN_EMAIL:-"admin@softfluid.fr"}
+GITEA_ADMIN_EMAIL=${GITEA_ADMIN_EMAIL:-"admin@opcp-psmc.com"}
 
 # Normalize LOCAL_MODE parameter (handle --locally and --docker)
 case "$LOCAL_MODE" in
@@ -2048,7 +2048,7 @@ EOF
 
 # Show usage information
 help() {
-    echo "🚀 OPCP-OPCP-Explorer Deployment Script v${VERSION}"
+    echo "🚀 OPCP-Explorer Deployment Script v${VERSION}"
     echo "Usage: $0 [COMMAND] [MODE] [USER_ID] [USER_NAME] [USER_EMAIL] [DESCRIPTION] [OPTIONS]"
     echo ""
     echo "COMMANDS:"
@@ -2280,7 +2280,7 @@ main() {
             exit 0
             ;;
         "version"|"--version"|"-v")
-            echo "OPCP-OPCP-Explorer v${VERSION}"
+            echo "OPCP-Explorer v${VERSION}"
             exit 0
             ;;
         *)

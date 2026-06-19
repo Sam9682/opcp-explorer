@@ -66,7 +66,7 @@ which python3 && which pip && which docker && which docker-compose
 ### Interactive Deployment (Recommended)
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/opcp-ai-powered-store.git
+git clone https://github.com/your-repo/opcp-explorer.git
 cd <PLTF_FOLDER>
 
 # Interactive deployment with menu selection
