@@ -818,7 +818,7 @@ WantedBy=multi-user.target
         sys.exit(1)
     except PermissionError:
         click.echo('✗ Permission denied. Run with sudo:')
-        click.echo('  sudo python3 ./scripts/aipoweredstore_cli.py install-as-systemctl-service')
+        click.echo('  sudo python3 ./scripts/opcpexplorer_cli.py install-as-systemctl-service')
         sys.exit(1)
     except Exception as e:
         click.echo(f'✗ Error: {str(e)}')
