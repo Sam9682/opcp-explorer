@@ -1,4 +1,4 @@
-"""PostgreSQL database manager for OPCP-SwAutoMorph"""
+"""PostgreSQL database manager for OPCP-Explorer"""
 import psycopg2
 import psycopg2.pool
 import threading
@@ -17,7 +17,7 @@ def load_deploy_config():
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'conf', 'deploy.ini')
 
     # Default values matching deployControlPlan.sh
-    NAME_OF_APPLICATION = "opcp-swautomorph"
+    NAME_OF_APPLICATION = "opcp-explorer"
     APPLICATION_IDENTITY_NUMBER = 0
     RANGE_START = 6000
     RANGE_RESERVED = 100
