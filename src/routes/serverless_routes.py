@@ -138,7 +138,7 @@ def sync_job_from_remote(job_id, target_link):
 
 @serverless_bp.route('/serverless-links', methods=['GET'])
 def get_serverless_links():
-    """Get all opcp-serverless-brik endpoint links with availability status."""
+    """Get opcp-serverless-* endpoint links that are actively running, with availability status."""
     # Auth check
     user_id = session.get('user_id')
     if not user_id:
@@ -151,48 +151,60 @@ def get_serverless_links():
 
         result_links = []
 
-        # First try: get links from user_applications for opcp-serverless-brik
+        # Get links from user_applications for apps matching 'opcp-serverless%'
+        # Only include endpoints where the deployment is actually running.
         try:
             all_links = db_manager.execute_query('''
-                SELECT u.username, ua.https_port
+                SELECT u.username, ua.https_port, a.name
                 FROM user_applications ua
                 JOIN applications a ON ua.application_id = a.id
                 JOIN users u ON ua.user_id = u.id
-                WHERE a.name = %s AND ua.https_port IS NOT NULL
+                JOIN deployments d ON d.user_id = ua.user_id
+                    AND d.application_id = ua.application_id
+                WHERE a.name LIKE %s
+                  AND ua.https_port IS NOT NULL
+                  AND UPPER(d.status) = 'RUNNING'
                 ORDER BY u.username
-            ''', ('opcp-serverless-brik',), fetch_all=True)
+            ''', ('opcp-serverless%',), fetch_all=True)
 
             if all_links:
                 for row in all_links:
-                    username, https_port = row
-                    result_links.append({"url": f"https://{DOMAIN}:{https_port}", "username": username})
+                    username, https_port, app_name = row
+                    result_links.append({
+                        "url": f"https://{DOMAIN}:{https_port}",
+                        "username": username,
+                        "app_name": app_name,
+                    })
         except Exception as e:
             logger.warning(f"Failed to query user_applications for serverless links: {e}")
 
-        # If no links found, compute them from the applications table + users
+        # Fallback: if no running deployments found, try without deployment join
+        # but still filter by opcp-serverless* pattern
         if not result_links:
             try:
-                app_row = db_manager.execute_query(
-                    "SELECT id FROM applications WHERE name = %s",
-                    ('opcp-serverless-brik',), fetch_one=True
-                )
-                if app_row:
-                    app_id = app_row[0]
-                    users = db_manager.execute_query(
-                        "SELECT id, username FROM users ORDER BY username",
-                        fetch_all=True
-                    )
-                    if users:
-                        for u_row in users:
-                            uid, username = u_row
-                            _, https_port, _, _ = calculate_app_ports(uid, app_id)
-                            result_links.append({"url": f"https://{DOMAIN}:{https_port}", "username": username})
+                all_links = db_manager.execute_query('''
+                    SELECT u.username, ua.https_port, a.name
+                    FROM user_applications ua
+                    JOIN applications a ON ua.application_id = a.id
+                    JOIN users u ON ua.user_id = u.id
+                    WHERE a.name LIKE %s AND ua.https_port IS NOT NULL
+                    ORDER BY u.username
+                ''', ('opcp-serverless%',), fetch_all=True)
+
+                if all_links:
+                    for row in all_links:
+                        username, https_port, app_name = row
+                        result_links.append({
+                            "url": f"https://{DOMAIN}:{https_port}",
+                            "username": username,
+                            "app_name": app_name,
+                        })
             except Exception as e:
-                logger.warning(f"Failed to compute serverless links from app ports: {e}")
+                logger.warning(f"Failed to query user_applications (fallback) for serverless links: {e}")
 
         # Last resort: if still empty, generate a default link for admin
         if not result_links:
-            result_links.append({"url": f"https://{DOMAIN}:6133", "username": "admin"})
+            result_links.append({"url": f"https://{DOMAIN}:6133", "username": "admin", "app_name": "opcp-serverless-brik"})
 
         # Determine availability status for each link
         # A brik is OCCUPIED if there's a pending or running job targeting it
