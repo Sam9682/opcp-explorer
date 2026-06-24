@@ -1,10 +1,14 @@
-# OPCP AI-Powered Store
+# OPCP-Explorer AI-Powered Store
 
 ## Objective
 
-OPCP AI-Powered Store is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
+OPCP-Explorer is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
 
 **Core Purpose**: Enable GenAI agents to autonomously deploy, manage, and access web applications without human intervention.
+
+**Platform Name**: OPCP-Explorer_AI_SharedGPU_Docker_Serverless
+**Domain**: opcp-psmc.com
+**Version**: 0.0.1
 
 ## Features
 
@@ -18,9 +22,9 @@ OPCP AI-Powered Store is a centralized application deployment and management pla
 - 🔌 REST API endpoints with streaming support (Server-Sent Events)
 - 🤖 MCP (Model Context Protocol) support
 - 🛡️ ModSecurity WAF protection with OWASP CRS rules
-- 🔄 Automated database backups with PostgreSQL pg_dump
-- 💰 Billing and cost tracking system with activity logging
-- 🤖 **Virtual AI Agents**: AI Chat Developer and Operations assistants
+- 🔄 Automated database backups with PostgreSQL pg_dump and history tracking
+- 💰 Billing and cost tracking system with activity logging and PDF invoices
+- 🤖 **Virtual AI Agents**: AI Chat Developer and Operations assistants (kiro-cli, qchat, shai engines)
 - 📊 Database health monitoring and statistics
 - 🌐 Multi-server deployment support with capacity management
 - 🔀 **Dynamic Nginx Locations**: Automatic reverse proxy configuration per user/app
@@ -28,10 +32,14 @@ OPCP AI-Powered Store is a centralized application deployment and management pla
 - 🔧 **PostgreSQL connection pooling** with thread-safe operations
 - 🔄 **SQLite to PostgreSQL migration tools**
 - 🎮 **MIG Shared GPU**: NVIDIA Multi-Instance GPU partitioning and management per server
-- ⚡ **Serverless Docker Execution**: Submit and run Docker-based jobs on-demand
-- 🔄 **Multi-server Replication**: Peer-to-peer database replication with sync tokens
-- 🎭 **App Orchestrator**: Automated application lifecycle orchestration with reconciliation
-- 🔒 **Password Reset & 2FA**: Secure password recovery and two-factor authentication via email
+- ⚡ **Serverless Docker Execution**: Submit and run Docker-based jobs on-demand with remote brik endpoint dispatching
+- 🔄 **Multi-server Replication**: Peer-to-peer database replication with sync tokens and version-based conflict resolution
+- 🎭 **App Orchestrator**: Automated application lifecycle orchestration with reconciliation loop and multi-user deployment
+- 🔒 **Password Reset & 2FA**: Secure password recovery and two-factor authentication (TOTP + email-based)
+- 📧 **Email Service**: SMTP-based notifications for password reset and 2FA verification codes
+- 🔍 **Platform Discovery**: Automatic multi-server role detection (PRIMARY/SECONDARY)
+- 🏗️ **Infrastructure as Code**: Terraform templates for OVHcloud provisioning
+- 📦 **Deployment Backups History**: JSONB-tracked backup history per deployment with S3 sync
 
 ## PostgreSQL Migration
 
@@ -192,6 +200,18 @@ source .venv/bin/activate
 # Automatically generated during deployment
 SECRET_KEY="auto-generated-32-byte-hex"
 FLASK_ENV="production"
+
+# SMTP Configuration for email service (password reset, 2FA)
+SMTP_HOST="localhost"
+SMTP_PORT=587
+SMTP_USER=""
+SMTP_PASSWORD=""
+SMTP_FROM_EMAIL="noreply@softfluid.fr"
+SMTP_FROM_NAME="AI-SwAutoMorph"
+SMTP_USE_TLS="true"
+
+# Replication sync secret
+SYNC_SECRET="your-sync-secret"
 ```
 
 ### Configuration File
@@ -200,10 +220,31 @@ FLASK_ENV="production"
 vim ./conf/deploy.ini
 
 # Key settings:
-DOMAIN="www.swautomorph.com"
-EMAIL="admin@swautomorph.com"
-GITEA_VERSION="1.21.3"
-MODSECURITY_CONF_DIR="/etc/nginx/modsec"
+DOMAIN="opcp-psmc.com"
+PLTF_NAME="OPCP-Explorer_AI_SharedGPU_Docker_Serverless"
+PLTF_FOLDER="opcp-explorer"
+VERSION="0.0.1"
+```
+
+### Serverless Configuration
+```ini
+# conf/serverless.ini
+[registry]
+whitelist = docker.io, ghcr.io, registry.example.com
+
+[resources]
+default_memory_limit = 512m
+default_cpu_limit = 1
+max_concurrent_jobs = 100
+
+[timeouts]
+default_timeout = 300
+max_timeout = 3600
+container_stop_timeout = 10
+poll_interval = 0.5
+
+[logging]
+log_retention_days = 30
 ```
 
 ### Database Initialization
@@ -220,6 +261,9 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 # Auto-generate self-signed certificate
 ./scripts/generate_ssl.sh
 
+# Let's Encrypt setup
+./scripts/setup_letsencrypt.sh
+
 # Or use production certificates (place in ssl/ directory)
 # - fullchain_domain.crt
 # - privateKey_domain.key
@@ -229,7 +273,7 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 
 ### User Registration
 ```bash
-curl -X POST https://www.swautomorph.com/register \
+curl -X POST https://opcp-psmc.com/register \
   -H "Content-Type: application/json" \
   -d '{"username":"agent","email":"agent@example.com","password":"secure_pass","first_name":"AI","last_name":"Agent"}'
 ```
@@ -237,22 +281,22 @@ curl -X POST https://www.swautomorph.com/register \
 ### Application Management
 ```bash
 # List applications
-curl https://www.swautomorph.com/api/applications
+curl https://opcp-psmc.com/api/applications
 
 # Add application (admin required)
-curl -X POST https://www.swautomorph.com/api/applications \
+curl -X POST https://opcp-psmc.com/api/applications \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"name":"MyApp","description":"My Application","git_url":"https://github.com/user/myapp.git"}'
 
 # Deploy application with streaming
-curl -X POST https://www.swautomorph.com/api/deployments \
+curl -X POST https://opcp-psmc.com/api/deployments \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"application_name":"MyApp","action":"clone","git_url":"https://github.com/user/myapp.git","server_id":1,"stream":true}'
 
 # Application lifecycle management
-curl -X POST https://www.swautomorph.com/api/deployments \
+curl -X POST https://opcp-psmc.com/api/deployments \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"application_name":"MyApp","action":"start"}'
@@ -261,16 +305,16 @@ curl -X POST https://www.swautomorph.com/api/deployments \
 ### Enhanced Server Management
 ```bash
 # List servers with capacity information
-curl https://www.swautomorph.com/api/servers
+curl https://opcp-psmc.com/api/servers
 
 # Allocate server for deployment (automatic capacity-based selection)
-curl -X POST https://www.swautomorph.com/api/server/allocate \
+curl -X POST https://opcp-psmc.com/api/server/allocate \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"application_name":"MyApp"}'
 
 # Add new server (admin required)
-curl -X POST https://www.swautomorph.com/api/servers \
+curl -X POST https://opcp-psmc.com/api/servers \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"SERVER_IP":"192.168.1.100","SERVER_NAME":"worker-01","SERVER_CAPACITY_USER_MAX":20,"SERVER_CAPACITY_APPLI_MAX":100,"SERVER_STATUS":"STAND_BY","SERVER_TYPE":"worker"}'
@@ -279,56 +323,157 @@ curl -X POST https://www.swautomorph.com/api/servers \
 ### MIG Shared GPU Management
 ```bash
 # Enable shared GPU on a server (admin required)
-curl -X PUT https://www.swautomorph.com/api/servers/1/gpu/enabled \
+curl -X PUT https://opcp-psmc.com/api/servers/1/gpu/enabled \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"enabled": true}'
 
 # List available MIG profiles from GPU hardware
-curl https://www.swautomorph.com/api/servers/1/gpu/profiles \
+curl https://opcp-psmc.com/api/servers/1/gpu/profiles \
   -H "Cookie: session=your-session-cookie"
 
 # Create MIG instances (1-7 profile IDs)
-curl -X POST https://www.swautomorph.com/api/servers/1/gpu/instances \
+curl -X POST https://opcp-psmc.com/api/servers/1/gpu/instances \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"profile_ids": ["9", "14", "9"]}'
 
 # List active MIG instances
-curl https://www.swautomorph.com/api/servers/1/gpu/instances \
+curl https://opcp-psmc.com/api/servers/1/gpu/instances \
   -H "Cookie: session=your-session-cookie"
 
 # Destroy all MIG instances on a server
-curl -X DELETE https://www.swautomorph.com/api/servers/1/gpu/instances \
+curl -X DELETE https://opcp-psmc.com/api/servers/1/gpu/instances \
   -H "Cookie: session=your-session-cookie"
 ```
 
 ### Serverless Docker Execution
 ```bash
-# Submit a serverless Docker job
-curl -X POST https://www.swautomorph.com/api/jobs \
+# List available serverless endpoints with availability status
+curl https://opcp-psmc.com/api/serverless-links \
+  -H "Cookie: session=your-session-cookie"
+# Response: {"links": ["https://opcp-psmc.com:6133"], "endpoints": [{"url": "...", "username": "admin", "status": "AVAILABLE"}]}
+
+# Submit a serverless Docker job (target_link required)
+curl -X POST https://opcp-psmc.com/api/jobs \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
-  -d '{"image": "python:3.11", "command": "python -c \"print(hello)\"", "timeout": 60}'
+  -d '{"image": "python:3.11", "command": ["python", "-c", "print(\"hello\")"], "timeout": 60, "target_link": "https://opcp-psmc.com:6133"}'
 
-# Check job status
-curl https://www.swautomorph.com/api/jobs/<job_id> \
+# Check job status (auto-syncs with remote brik endpoint)
+curl https://opcp-psmc.com/api/jobs/<job_id> \
   -H "Cookie: session=your-session-cookie"
 
-# List user jobs
-curl https://www.swautomorph.com/api/jobs \
+# Get job result (stdout, stderr, exit_code)
+curl https://opcp-psmc.com/api/jobs/<job_id>/result \
   -H "Cookie: session=your-session-cookie"
+
+# Cancel a pending or running job
+curl -X POST https://opcp-psmc.com/api/jobs/<job_id>/cancel \
+  -H "Cookie: session=your-session-cookie"
+
+# List user jobs (with pagination and status filter)
+curl "https://opcp-psmc.com/api/jobs?page=1&per_page=20&status=completed" \
+  -H "Cookie: session=your-session-cookie"
+
+# Get job metrics (admin only)
+curl https://opcp-psmc.com/api/jobs/metrics \
+  -H "Cookie: session=your-session-cookie"
+```
+
+### App Orchestrator
+```bash
+# List services and their instances
+curl https://opcp-psmc.com/api/orchestrator/services \
+  -H "Cookie: session=your-session-cookie"
+
+# Create a new service (admin)
+curl -X POST https://opcp-psmc.com/api/orchestrator/services \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-session-cookie" \
+  -d '{"name":"MyService","image":"https://github.com/user/repo.git","desired_replicas":2}'
+
+# Multi-user deployment (creates N replica users with app instances)
+curl -X POST https://opcp-psmc.com/api/orchestrator/services/multi-user-deploy \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-session-cookie" \
+  -d '{"name":"MyApp","image":"https://github.com/user/repo.git","desired_replicas":3}'
+
+# Scale a service
+curl -X POST https://opcp-psmc.com/api/orchestrator/services/MyService/scale \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-session-cookie" \
+  -d '{"replicas": 3}'
+
+# Trigger health check
+curl -X POST https://opcp-psmc.com/api/orchestrator/health-check \
+  -H "Cookie: session=your-session-cookie"
+
+# Get orchestrator status and statistics
+curl https://opcp-psmc.com/api/orchestrator/status \
+  -H "Cookie: session=your-session-cookie"
+
+# Trigger manual reconciliation
+curl -X POST https://opcp-psmc.com/api/orchestrator/reconcile \
+  -H "Cookie: session=your-session-cookie"
+```
+
+### Multi-server Replication
+```bash
+# Check replication health
+curl https://opcp-psmc.com/api/sync/health
+
+# Get detailed replication status (peer count, queue size)
+curl https://opcp-psmc.com/api/sync/status
+
+# Replicate event to peer (internal, uses X-Sync-Token header)
+curl -X POST https://opcp-psmc.com/api/sync/replicate \
+  -H "X-Sync-Token: your-sync-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"event_id":"uuid","timestamp":"...","table":"USERS","operation":"INSERT","data":{}}'
+```
+
+### Password Reset & Two-Factor Authentication
+```bash
+# Request password reset (authenticated user)
+curl -X POST https://opcp-psmc.com/security/password-reset/request \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-session-cookie" \
+  -d '{"user_id": 2}'
+
+# Change password (logged-in user)
+curl -X POST https://opcp-psmc.com/security/change-password \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-session-cookie" \
+  -d '{"current_password":"old_pass","new_password":"new_pass"}'
+
+# Setup TOTP 2FA
+curl -X POST https://opcp-psmc.com/security/2fa/setup \
+  -H "Cookie: session=your-session-cookie"
+
+# Enable email-based 2FA
+curl -X POST https://opcp-psmc.com/security/2fa/enable-email \
+  -H "Cookie: session=your-session-cookie"
+
+# Get 2FA status
+curl https://opcp-psmc.com/security/2fa/status \
+  -H "Cookie: session=your-session-cookie"
+
+# Verify 2FA during login
+curl -X POST https://opcp-psmc.com/security/2fa/verify-login \
+  -H "Content-Type: application/json" \
+  -d '{"code":"123456","method":"totp"}'
 ```
 
 ### Dynamic Nginx Locations
 ```bash
 # Access user applications via dynamic URLs
-# Format: https://www.swautomorph.com/{USER_ID}/{APPLICATION_NAME}
+# Format: https://opcp-psmc.com/{USER_ID}/{APPLICATION_NAME}
 # Example: User 2's ai-staticwebsite running on port 6217
-curl https://www.swautomorph.com/2/ai-staticwebsite
+curl https://opcp-psmc.com/2/ai-staticwebsite
 
 # Sync all nginx locations from database (admin required)
-curl -X POST https://www.swautomorph.com/api/nginx/sync \
+curl -X POST https://opcp-psmc.com/api/nginx/sync \
   -H "Cookie: session=your-session-cookie"
 
 # Or via CLI
@@ -338,19 +483,19 @@ python3 ./scripts/sync_nginx_locations.py
 ### Virtual AI Agents Integration
 ```bash
 # AI Chat Developer Agent (code modifications)
-curl -X POST https://www.swautomorph.com/api/request_dev_ai_for_app \
+curl -X POST https://opcp-psmc.com/api/request_dev_ai_for_app \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"message":"Add a new API endpoint for user management","application_name":"MyApp","application_folder":"/path/to/app","action_operation":"MODIFY_CODE"}'
 
 # AI Chat Operations Agent (deployment operations)
-curl -X POST https://www.swautomorph.com/api/request_ops_ai_for_app \
+curl -X POST https://opcp-psmc.com/api/request_ops_ai_for_app \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"message":"[START] Start the application","application_name":"MyApp","application_folder":"/path/to/app","action_operation":"START"}'
 
 # Streaming deployment with real-time logs
-curl -X POST https://www.swautomorph.com/api/deployments \
+curl -X POST https://opcp-psmc.com/api/deployments \
   -H "Content-Type: application/json" \
   -H "Cookie: session=your-session-cookie" \
   -d '{"application_name":"MyApp","action":"start","stream":true}'
@@ -378,6 +523,12 @@ python3 ./scripts/aipoweredstore_cli.py mount-s3fs softfluid /mnt/s3
 
 # Initialize database with thread-safe operations
 python3 ./scripts/aipoweredstore_cli.py init-db
+
+# Orchestrator CLI
+python3 ./scripts/orchestrator_cli.py
+
+# Install serverless worker service
+./scripts/install_worker_service.sh
 ```
 
 ### MCP Protocol
@@ -406,16 +557,36 @@ python3 ./scripts/mcp_server.py
 ### Enhanced Health Checks
 ```bash
 # API health check
-curl https://www.swautomorph.com/api/auth/status
+curl https://opcp-psmc.com/api/auth/status
 
 # Database health check with statistics (admin required)
-curl https://www.swautomorph.com/api/health/database
+curl https://opcp-psmc.com/api/health/database
+
+# Platform status (multi-server role detection)
+curl https://opcp-psmc.com/api/platform/status
 
 # Check Docker services
 docker-compose ps
 
 # Check deployment logs with streaming
-curl https://www.swautomorph.com/api/deployments/1/logs
+curl https://opcp-psmc.com/api/deployments/1/logs
+```
+
+### Serverless Worker Service
+```bash
+# Install the worker as a systemd service
+./scripts/install_worker_service.sh
+
+# Or run manually
+python3 -m src.serverless.worker
+
+# Environment variables for worker
+export WORKER_ID="worker-001"
+export POSTGRES_HOST="localhost"
+export POSTGRES_PORT="5432"
+export POSTGRES_DB="ai_swautomorph"
+export POSTGRES_USER="swautomorph"
+export POSTGRES_PASSWORD="swautomorph_password"
 ```
 
 ### Database Management
@@ -428,13 +599,16 @@ curl https://www.swautomorph.com/api/deployments/1/logs
 
 # Database health check
 python3 ./scripts/aipoweredstore_cli.py db-health
+
+# Add backup to deployment history
+python3 ./scripts/add_backup_to_deployment.py
 ```
 
 ## Default Configuration
 
-- **Web Interface**: https://www.swautomorph.com (or https://localhost)
-- **API Endpoint**: https://www.swautomorph.com/api
-- **Gitea Server**: https://www.swautomorph.com/gitea (port 3000)
+- **Web Interface**: https://opcp-psmc.com (or https://localhost)
+- **API Endpoint**: https://opcp-psmc.com/api
+- **Gitea Server**: https://opcp-psmc.com/gitea (port 3000)
 - **MCP Server**: Available via scripts/mcp_server.py
 - **Database**: **PostgreSQL with connection pooling** (enterprise-grade performance and scalability)
 - **Deployment Directory**: /home/ubuntu/deployments/[username]/[appname]
@@ -442,6 +616,7 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 - **Logs**: logs/ directory with daily rotation and Gunicorn logging
 - **Backups**: softfluid/db/backup/ with S3 sync and hourly automated backups
 - **Virtual Agents**: AI Chat Developer and Operations with context-aware prompts
+- **Serverless Worker**: systemd service with Docker/Podman runtime auto-detection
 
 ## Architecture
 
@@ -449,85 +624,137 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 ```
 <PLTF_FOLDER>/
 ├── src/                    # Main application source
-│   ├── routes/            # Flask route blueprints
-│   │   ├── main_routes.py        # Dashboard & documentation
-│   │   ├── auth_routes.py        # User authentication
-│   │   ├── sso_routes.py         # Single Sign-On
-│   │   ├── api_routes.py         # REST API with streaming
-│   │   ├── genai_routes.py       # Virtual AI agents
-│   │   ├── billing_routes.py     # Billing & cost tracking
-│   │   ├── orchestrator_routes.py # App lifecycle orchestration
+│   ├── routes/            # Flask route blueprints (11 blueprints)
+│   │   ├── main_routes.py        # Dashboard, docs, language, GPU page
+│   │   ├── auth_routes.py        # User authentication (login, register, logout)
+│   │   ├── sso_routes.py         # Single Sign-On with Gitea
+│   │   ├── api_routes.py         # REST API with streaming (deployments, servers, apps)
+│   │   ├── genai_routes.py       # Virtual AI agents (developer, operations)
+│   │   ├── billing_routes.py     # Billing, cost tracking & PDF invoices
+│   │   ├── orchestrator_routes.py # App lifecycle orchestration & multi-user deploy
 │   │   ├── replication_routes.py # Multi-server replication
-│   │   ├── security_routes.py   # Password reset & 2FA
-│   │   ├── serverless_routes.py  # Serverless Docker execution
+│   │   ├── security_routes.py   # Password reset & 2FA (TOTP + email)
+│   │   ├── serverless_routes.py  # Serverless Docker execution & brik dispatching
 │   │   └── gpu_routes.py         # MIG shared GPU management
 │   ├── serverless/        # Serverless execution engine
-│   ├── ControlPlanFlaskApp_postgres.py    # Main Flask application
+│   │   ├── __init__.py
+│   │   ├── worker.py            # Worker polling loop (FOR UPDATE SKIP LOCKED)
+│   │   ├── container_runtime.py # Docker/Podman abstraction with security hardening
+│   │   ├── config.py            # Registry whitelist, resource limits
+│   │   └── log_cleanup.py       # 30-day log retention cleanup
+│   ├── ControlPlanFlaskApp_postgres.py    # Main Flask application factory
 │   ├── database_postgres.py      # PostgreSQL database manager with connection pooling
-│   ├── database.py               # Legacy SQLite database manager (migration compatibility)
+│   ├── config_postgres.py        # Configuration (domain, timeouts, i18n)
 │   ├── nginx_manager.py          # Dynamic nginx location management
-│   ├── orchestrator.py           # Application orchestration & reconciliation
-│   ├── replication_manager.py    # Peer-to-peer database replication
-│   ├── platform_discovery.py     # Platform capability discovery
-│   ├── config.py                 # Configuration & multi-language
-│   └── auth.py                   # Authentication utilities
-├── migration/             # Database migration scripts
-│   ├── add_serverless_jobs.sql          # Serverless jobs schema
+│   ├── orchestrator.py           # LightOrchestrator with reconciliation loop
+│   ├── replication_manager.py    # Event-driven peer-to-peer replication
+│   ├── platform_discovery.py     # Multi-server role detection (PRIMARY/SECONDARY)
+│   ├── email_service.py          # SMTP email for password reset & 2FA
+│   ├── auth.py                   # Authentication utilities & SSO tokens
+│   └── __init__.py
+├── migration/             # Database migration scripts (12 files)
+│   ├── add_serverless_jobs.sql          # Serverless jobs, logs, results schema
+│   ├── add_target_link_to_serverless_jobs.sql  # Remote brik endpoint targeting
 │   ├── add_mig_gpu.sql                  # MIG GPU tables & server flag
 │   ├── add_password_reset_and_2fa.sql   # Security features schema
-│   └── ...                              # Other migrations
+│   ├── add_backups_history_to_deployments.sql  # Backup history JSONB
+│   ├── add_user_id_to_services.sql      # Multi-user service isolation
+│   ├── add_url_to_applications.sql      # Application URL tracking
+│   ├── make_application_fkeys_deferrable.sql   # Deferrable foreign keys
+│   ├── fix_server_capacity.sql          # Server capacity fix
+│   ├── fix_services_constraint.sql      # Services constraint fix
+│   ├── fix_deployment_user_id.sql       # Deployment user_id fix
+│   └── fix_instances_fkey.sql           # Instances foreign key fix
 ├── scripts/               # CLI tools and utilities
-│   ├── aipoweredstore_cli.py            # Command-line interface
-│   ├── mcp_server.py             # Model Context Protocol server
-│   ├── sync_nginx_locations.py   # Sync nginx locations from database
-│   └── postgresql_schema.sql     # PostgreSQL schema definition
+│   ├── aipoweredstore_cli.py            # Platform command-line interface
+│   ├── orchestrator_cli.py              # Orchestrator management CLI
+│   ├── mcp_server.py                    # Model Context Protocol server
+│   ├── sync_nginx_locations.py          # Nginx location sync from database
+│   ├── install_worker_service.sh        # Install serverless worker systemd service
+│   ├── postgresql_schema.sql            # PostgreSQL schema definition
+│   ├── add_backup_to_deployment.py      # Add backup to deployment history
+│   ├── mount_s3fs.py                    # S3 filesystem mounting
+│   ├── generate_ssl.sh                  # SSL certificate generation
+│   ├── setup_letsencrypt.sh             # Let's Encrypt SSL setup
+│   ├── ovh_infrastructure.tf            # Terraform IaC for OVHcloud
+│   ├── terraform.tfvars.example         # Terraform variables example
+│   ├── deploy_example_service.sh        # Service deployment example
+│   ├── sso_client_example.py            # SSO client example
+│   └── swautomorph-controlplan.service  # Systemd service file
 ├── tests/                # Test suite (pytest)
+│   ├── test_serverless_routes.py        # Serverless API tests
+│   ├── test_worker.py                   # Worker process tests
+│   ├── test_worker_main.py              # Worker main entry point tests
+│   ├── test_worker_logging.py           # Worker logging tests
+│   ├── test_container_runtime.py        # Container runtime tests
+│   ├── test_log_cleanup.py              # Log cleanup tests
 │   ├── test_gpu_parsers.py              # MIG instance parser tests
 │   ├── test_parse_mig_profiles.py       # MIG profile parser tests
 │   ├── test_validate_profile_ids.py     # Profile ID validation tests
 │   ├── test_gpu_enabled_endpoint.py     # GPU enabled toggle tests
-│   ├── test_gpu_delete_instances.py     # GPU instance destruction tests
-│   ├── test_serverless_routes.py        # Serverless API tests
-│   ├── test_container_runtime.py        # Container runtime tests
-│   └── test_worker.py                   # Worker process tests
+│   └── test_gpu_delete_instances.py     # GPU instance destruction tests
 ├── templates/            # HTML templates with EN/FR support
-│   ├── shared_gpu.html           # MIG GPU management page
+│   ├── base.html                 # Base layout with navigation
 │   ├── dashboard.html            # Main dashboard
-│   └── ...                       # Other templates
+│   ├── shared_gpu.html           # MIG GPU management page
+│   ├── login.html                # Login page
+│   ├── register.html             # Registration page
+│   ├── password_reset.html       # Password reset form
+│   ├── sso_login.html            # SSO login page
+│   ├── docs.html                 # Documentation listing
+│   ├── doc_viewer.html           # Markdown doc viewer
+│   └── dashboard_functions.js    # Dashboard JavaScript
+├── conf/                 # Configuration files
+│   ├── deploy.ini                # Main platform configuration
+│   └── serverless.ini            # Serverless worker configuration
 ├── static/               # CSS, JS, and static files
 ├── ssl/                  # SSL certificates
-├── logs/                 # Application logs with Gunicorn support
+├── logs/                 # Application logs with rotation
 ├── shared/               # Context files for virtual agents
-├── docs/                 # Comprehensive documentation
-│   ├── USER_GUIDE.md             # AI agent usage guide
-│   ├── ARCHITECTURE_GUIDE.md     # System architecture
-│   ├── DEPLOYMENT_GUIDE.md       # Deployment procedures
-│   ├── DATABASE_IMPROVEMENTS.md  # Database enhancements
-│   ├── NGINX_DYNAMIC_LOCATIONS.md # Dynamic nginx locations guide
-│   └── VIRTUAL_AGENTS_API.md     # Virtual agents API reference
-├── conf/                 # Configuration files
-├── init_pltf.sh          # Platform initialization (Docker, NVIDIA drivers, MIG)
-└── deployControlPlan.sh  # Main deployment script
+├── docs/                 # Documentation
+├── init_pltf.sh          # Platform initialization (Docker, NVIDIA, MIG)
+├── deployControlPlan.sh  # Main deployment script
+├── wsgi.py               # WSGI entry point for Gunicorn
+├── requirements.txt      # Python dependencies
+└── Dockerfile.postgres   # PostgreSQL Docker configuration
 ```
 
 ### Key Components
 
-- **Flask Application**: Multi-blueprint architecture with modular routes and virtual AI agents
+- **Flask Application**: Multi-blueprint architecture (11 blueprints) with modular routes and virtual AI agents
 - **Database**: **PostgreSQL with connection pooling** for enterprise-grade performance and thread-safe operations
-- **Authentication**: Session-based with SSO token support, password reset, and two-factor authentication
+- **Authentication**: Session-based with SSO token support, password reset, and two-factor authentication (TOTP + email)
 - **Deployment**: Multi-server support with capacity management, automatic allocation, and streaming APIs
-- **App Orchestrator**: Automated application lifecycle management with reconciliation loop
-- **Serverless Execution**: Docker-based job submission and execution engine with worker processes
-- **MIG Shared GPU**: NVIDIA Multi-Instance GPU partitioning via SSH with per-server configuration and web UI
-- **Replication**: Peer-to-peer database replication across multiple servers with sync tokens
-- **Nginx Proxy**: Dynamic location blocks for user applications with automatic configuration
-- **Security**: ModSecurity WAF with OWASP CRS rules, password reset, and 2FA via email
-- **Monitoring**: Health checks, database statistics, real-time streaming logs, and performance metrics
-- **Virtual AI Agents**: AI Chat Developer and Operations assistants with context-aware prompts
-- **Billing System**: Comprehensive cost tracking with activity logging, usage monitoring, and automated invoicing
+- **App Orchestrator**: Automated application lifecycle management with reconciliation loop (30s interval), multi-user deployment, and health checks
+- **Serverless Execution**: Docker-based job submission with remote opcp-serverless-brik dispatching, `FOR UPDATE SKIP LOCKED` queue, cancellation support, and worker processes
+- **MIG Shared GPU**: NVIDIA Multi-Instance GPU partitioning via SSH with per-server configuration, web UI, and database tracking
+- **Replication**: Event-driven peer-to-peer database replication with version-based conflict resolution, retry logic, and sync tokens
+- **Platform Discovery**: Automatic multi-server role detection (PRIMARY/SECONDARY) with remote status checks
+- **Nginx Proxy**: Dynamic location blocks for user applications with automatic configuration and orchestrator-generated upstreams
+- **Security**: ModSecurity WAF with OWASP CRS rules, password reset via email, TOTP 2FA with backup codes, email-based 2FA
+- **Email Service**: SMTP-based notifications for password reset links and 2FA verification codes
+- **Monitoring**: Health checks, database statistics, real-time streaming logs, orchestrator status, and job metrics
+- **Virtual AI Agents**: AI Chat Developer and Operations assistants with context-aware prompts (kiro-cli, qchat, shai engines)
+- **Billing System**: Comprehensive cost tracking with activity logging, usage monitoring, PDF invoice generation, and period filtering
 - **Multi-language**: English/French support with session-based language switching and bilingual documentation
-- **Backup System**: Automated hourly backups with S3 sync and interactive recovery tools
-- **Platform Init**: Automated server provisioning including Docker, NVIDIA drivers, and MIG mode setup
+- **Backup System**: Automated hourly backups with S3 sync, interactive recovery tools, and per-deployment JSONB history tracking
+- **Infrastructure as Code**: Terraform templates for OVHcloud provisioning (servers, networking)
+- **Platform Init**: Automated server provisioning including Docker, NVIDIA drivers, MIG mode, Kiro CLI, and Terraform setup
+
+### Python Dependencies
+
+```
+Flask
+Werkzeug
+click
+requests
+Flask-CORS
+simple-term-menu
+gunicorn
+psycopg2-binary
+python-dotenv
+pyotp
+```
 
 ## Troubleshooting
 
@@ -552,7 +779,15 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 
 # SSL certificate issues
 ./scripts/generate_ssl.sh
-./scripts/fix_ssl_chain.sh
+./scripts/setup_letsencrypt.sh
+
+# Replication issues
+curl https://opcp-psmc.com/api/sync/health
+curl https://opcp-psmc.com/api/sync/status
+
+# Serverless worker issues
+journalctl -u serverless-worker.service -f
+python3 -m src.serverless.worker  # Run manually for debugging
 ```
 
 ### Reset Installation
@@ -567,7 +802,6 @@ docker system prune -f
 # Complete reset (Local)
 sudo systemctl stop nginx gitea
 sudo rm -rf /etc/nginx/sites-enabled/<PLTF_FOLDER>
-rm -rf softfluid/db/ai_swautomorph.db
 
 # Restart deployment
 ./deployControlPlan.sh start

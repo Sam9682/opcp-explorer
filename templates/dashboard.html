@@ -644,7 +644,27 @@
                 </div>
                 <div class="form-group">
                     <label for="serviceReplicas">Desired Replicas:</label>
-                    <input type="number" id="serviceReplicas" min="0" max="10" value="1">
+                    <input type="number" id="serviceReplicas" min="1" max="10" value="1">
+                </div>
+                <!-- Deployment Mode Switch -->
+                <div class="form-group">
+                    <label>Deployment Mode:</label>
+                    <div class="deployment-mode-switch" style="display: flex; gap: 10px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 15px; border: 2px solid #3498db; border-radius: 8px; background: #eaf4fd; flex: 1;" id="deployModeLabel1">
+                            <input type="radio" name="deploymentMode" value="multi_server" checked onchange="onDeploymentModeChange()">
+                            <div>
+                                <strong>🖥️ Multi-Server</strong><br>
+                                <small style="color: #555;">Start Docker replicas across available servers (one per server)</small>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 15px; border: 2px solid #dee2e6; border-radius: 8px; background: #f8f9fa; flex: 1;" id="deployModeLabel2">
+                            <input type="radio" name="deploymentMode" value="multi_user_local" onchange="onDeploymentModeChange()">
+                            <div>
+                                <strong>👥 Multi-User Local</strong><br>
+                                <small style="color: #555;">Create replica users on current server, clone &amp; start Docker in each user environment</small>
+                            </div>
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="serviceEnvironment">Environment Variables (JSON):</label>
@@ -1162,7 +1182,7 @@ function loadUsers() {
                 const status = user.suspended ? 'Suspended' : 'Active';
                 const statusClass = user.suspended ? 'status-suspended' : 'status-active';
                 const twofa = user.totp_enabled ? '🔒 TOTP' : (user.email_2fa_enabled ? '📧 Email' : '❌ Off');
-                html += `<tr>
+                html += `<tr style="${user.suspended ? 'background-color: #f8d7da;' : ''}">
                     <td>${user.id}</td>
                     <td>${user.username}</td>
                     <td>${user.email}</td>
@@ -4570,12 +4590,9 @@ function setButtonLoadingState(appName, action, isLoading, repoSize, startDurati
         button.title = 'Please wait, action in progress...';
         
         // Show loading message for actions that don't show modal immediately
-        if (action === 'clone' || action === 'start' || action === 'stop' || action === 'restart' || action === 'ps') {
+        if (action === 'clone' || action === 'start' || action === 'stop' || action === 'restart' || action === 'ps' || action === 'logs') {
             console.log('Calling showLoadingMessage for action:', action);
             showLoadingMessage(action, appName, repoSize, startDuration, stopDuration);
-        } else if (action === 'logs') {
-            // For logs, show a brief loading indicator without overlay
-            showBriefLoadingIndicator(action, appName);
         }
     } else {
         // Restore original state
@@ -4588,8 +4605,8 @@ function setButtonLoadingState(appName, action, isLoading, repoSize, startDurati
         button.style.cursor = 'pointer';
         button.title = '';
         
-        // Hide loading message (keep open for clone and start actions)
-        if (action !== 'clone' && action !== 'start' && action !== 'ps') {
+        // Hide loading message (keep open for clone, start, ps and logs actions)
+        if (action !== 'clone' && action !== 'start' && action !== 'ps' && action !== 'logs') {
             hideLoadingMessage();
         }
         hideBriefLoadingIndicator();
@@ -4693,7 +4710,7 @@ function showResultInWaitingBox(results) {
     
     // Update the loading content while maintaining size
     loadingContent.innerHTML = `
-        <h3 style="margin: 0 0 1rem 0; color: #2c3e50; font-size: 1.1rem; word-wrap: break-word;">✅ Clone Completed</h3>
+        <h3 style="margin: 0 0 1rem 0; color: #2c3e50; font-size: 1.1rem; word-wrap: break-word;">✅ Operation Completed</h3>
         <div class="results-container" style="background: #f8f9fa; padding: 0.6rem; border-radius: 6px; margin: 0.6rem 0; text-align: left; word-wrap: break-word; min-height: ${Math.max(200, currentHeight - 100)}px; max-height: 300px; overflow-y: auto;">
             <div style="margin: 0; font-size: 0.7rem; color: #34495e; line-height: 1.2; word-wrap: break-word; white-space: pre-wrap;">${results}</div>
         </div>
@@ -4882,6 +4899,28 @@ function showLoadingMessage(action, appName, repoSize, startDuration, stopDurati
                 <div class="loading-tips" style="background: #e8f4fd; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;">
                     <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #34495e; line-height: 1.4;">💡 <strong>Tip:</strong> Status check shows current container state</p>
                     <p style="margin: 0; font-size: 0.85rem; color: #34495e; line-height: 1.4;">📋 This will show if containers are running, stopped, or have issues</p>
+                </div>
+                <div class="loading-actions" style="margin-top: 1.5rem; text-align: center;">
+                    <button onclick="hideLoadingMessage()" class="btn btn-secondary" style="padding: 0.5rem 1rem; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">Close</button>
+                </div>
+            </div>
+        `;
+        
+    } else if (action === 'logs') {
+        // Logs loading with centered overlay
+        loadingDiv.innerHTML = `
+            <div class="loading-spinner" style="width: 40px; height: 40px; border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem auto;"></div>
+            <div class="loading-content" style="width: 100%;">
+                <h3 style="margin: 0 0 1.5rem 0; color: #2c3e50; font-size: 1.4rem;">📋 Loading Logs - ${appName}</h3>
+                <div class="progress-container" style="margin: 1.5rem 0;">
+                    <div class="progress-bar" style="width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem;">
+                        <div class="progress-fill" id="logsProgress" style="height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); width: 0%; transition: width 0.3s ease; border-radius: 4px;"></div>
+                    </div>
+                    <div class="progress-text" id="progressText" style="font-size: 0.9rem; color: #7f8c8d; margin-bottom: 1rem;">Fetching application logs...</div>
+                </div>
+                <div class="loading-tips" style="background: #e8f4fd; padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: left;">
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #34495e; line-height: 1.4;">💡 <strong>Tip:</strong> Logs show recent container output</p>
+                    <p style="margin: 0; font-size: 0.85rem; color: #34495e; line-height: 1.4;">📋 This will display the latest application logs from Docker</p>
                 </div>
                 <div class="loading-actions" style="margin-top: 1.5rem; text-align: center;">
                     <button onclick="hideLoadingMessage()" class="btn btn-secondary" style="padding: 0.5rem 1rem; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">Close</button>
@@ -5355,10 +5394,13 @@ document.addEventListener('DOMContentLoaded', function() {
         newServiceForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
+            const deploymentMode = document.querySelector('input[name="deploymentMode"]:checked').value;
+            
             const formData = {
                 name: document.getElementById('serviceName').value,
                 image: document.getElementById('serviceImage').value,
-                desired_replicas: parseInt(document.getElementById('serviceReplicas').value) || 1
+                desired_replicas: parseInt(document.getElementById('serviceReplicas').value) || 1,
+                deployment_mode: deploymentMode
             };
             
             // Parse JSON fields
@@ -5409,7 +5451,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Show loading indicator
             showServiceCreationLoading();
             
-            fetch('/api/orchestrator/services', {
+            // Choose endpoint based on deployment mode
+            const endpoint = deploymentMode === 'multi_user_local' 
+                ? '/api/orchestrator/services/multi-user-deploy' 
+                : '/api/orchestrator/services';
+            
+            fetch(endpoint, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(formData)
@@ -5420,6 +5467,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.error) {
                     alert(data.error);
                 } else {
+                    // Show success details for multi-user mode
+                    if (deploymentMode === 'multi_user_local' && data.created_users) {
+                        let msg = `Service ${formData.name} deployed successfully!\n\n`;
+                        msg += `Created ${data.created_users.length} replica user(s):\n`;
+                        data.created_users.forEach(u => {
+                            msg += `  • ${u.username} (status: ${u.status})\n`;
+                        });
+                        alert(msg);
+                    }
                     hideCreateServiceForm();
                     loadServices();
                     loadOrchestratorStatus();
@@ -5427,11 +5483,30 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 hideServiceCreationLoading();
-                alert('Error creating service.');
+                alert('Error creating service: ' + error.message);
             });
         });
     }
 });
+
+// Deployment mode switch visual feedback
+function onDeploymentModeChange() {
+    const mode = document.querySelector('input[name="deploymentMode"]:checked').value;
+    const label1 = document.getElementById('deployModeLabel1');
+    const label2 = document.getElementById('deployModeLabel2');
+    
+    if (mode === 'multi_server') {
+        label1.style.borderColor = '#3498db';
+        label1.style.background = '#eaf4fd';
+        label2.style.borderColor = '#dee2e6';
+        label2.style.background = '#f8f9fa';
+    } else {
+        label1.style.borderColor = '#dee2e6';
+        label1.style.background = '#f8f9fa';
+        label2.style.borderColor = '#27ae60';
+        label2.style.background = '#eafaf1';
+    }
+}
 </script>
 
 <script>
