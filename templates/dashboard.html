@@ -709,6 +709,17 @@
                     <option value="">All Applications</option>
                 </select>
             </div>
+            <div>
+                <label for="filterStatus">Status:</label>
+                <select id="filterStatus" onchange="loadDeploymentsTable()">
+                    <option value="">All Statuses</option>
+                    <option value="RUNNING">Running</option>
+                    <option value="STOPPED">Stopped</option>
+                    <option value="CLONED">Cloned</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="FAILED">Failed</option>
+                </select>
+            </div>
             <button class="btn btn-secondary" onclick="loadDeploymentsTable()">Refresh</button>
         </div>
         
@@ -5732,11 +5743,30 @@ function loadDeploymentsFilters() {
                 appSelect.appendChild(option);
             });
         });
+
+    // Populate status filter from actual deployment statuses
+    fetch('/api/deployments/all')
+        .then(response => response.json())
+        .then(deployments => {
+            const statusSelect = document.getElementById('filterStatus');
+            if (!statusSelect) return;
+            const currentValue = statusSelect.value;
+            const statuses = [...new Set(deployments.map(d => d.status).filter(Boolean).map(s => s.toUpperCase()))].sort();
+            statusSelect.innerHTML = '<option value="">All Statuses</option>';
+            statuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status.charAt(0) + status.slice(1).toLowerCase();
+                statusSelect.appendChild(option);
+            });
+            if (currentValue) statusSelect.value = currentValue;
+        });
 }
 
 function loadDeploymentsTable() {
     const userIdElement = document.getElementById('filterUserId');
     const appIdElement = document.getElementById('filterApplicationId');
+    const statusElement = document.getElementById('filterStatus');
     
     if (!userIdElement || !appIdElement) {
         return;
@@ -5744,6 +5774,7 @@ function loadDeploymentsTable() {
     
     const userId = userIdElement.value;
     const appId = appIdElement.value;
+    const statusFilter = statusElement ? statusElement.value : '';
     
     fetch('/api/deployments/all')
         .then(response => response.json())
@@ -5755,6 +5786,9 @@ function loadDeploymentsTable() {
             }
             if (appId) {
                 filtered = filtered.filter(d => d.application_id == appId);
+            }
+            if (statusFilter) {
+                filtered = filtered.filter(d => d.status && d.status.toUpperCase() === statusFilter);
             }
             
             const container = document.getElementById('deploymentsTableContainer');
