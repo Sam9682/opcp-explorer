@@ -727,17 +727,26 @@ def multi_user_deploy():
                 created_users.append({'username': replica_username, 'status': f'error: {str(e)}'})
                 continue
         
-        # Also create the service record in services table for tracking
+        # Create the service record in services table for tracking only.
+        # Set desired_replicas=0 so that the orchestrator's reconciliation loop
+        # does NOT try to `docker run` the git_url as an image — multi_user_deploy
+        # already handles cloning and starting containers via deployApp.sh.
         from ..orchestrator import orchestrator
         orchestrator.create_service(
             name=app_name,
             image=git_url,
             user_id=session['user_id'],
-            desired_replicas=desired_replicas,
+            desired_replicas=0,
             ports=data.get('ports', {}),
             environment=environment,
             volumes=data.get('volumes', []),
             health_check_path=health_check_path
+        )
+        # Now update the service record to reflect the actual desired replicas
+        # without triggering reconciliation (which would try docker run with the git URL)
+        db_manager.execute_query(
+            'UPDATE services SET desired_replicas = %s, updated_at = CURRENT_TIMESTAMP WHERE name = %s AND user_id = %s',
+            (desired_replicas, app_name, session['user_id'])
         )
         
         successful = sum(1 for u in created_users if 'deployed' in u.get('status', '') or 'redeployed' in u.get('status', ''))

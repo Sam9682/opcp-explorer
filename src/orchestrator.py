@@ -169,6 +169,17 @@ class LightOrchestrator:
                     for instance in instances_to_remove:
                         self._stop_instance(instance[0])  # instance id
 
+    @staticmethod
+    def _is_git_url(image):
+        """Check if the image field is a git URL rather than a Docker image reference"""
+        if not image:
+            return False
+        return (image.endswith('.git')
+                or image.startswith('http://') or image.startswith('https://')
+                or image.startswith('git@')
+                or 'github.com' in image or 'gitlab.com' in image
+                or 'gitea' in image or 'forgejo' in image)
+
     def _create_instance(self, service, replica_num):
         """Create a new instance of a service"""
         service_name = service[1]
@@ -177,6 +188,16 @@ class LightOrchestrator:
         ports = json.loads(service[5]) if service[5] else {}
         environment = json.loads(service[6]) if service[6] else {}
         volumes = json.loads(service[7]) if service[7] else []
+
+        # Skip docker run for git-based services — these are managed by
+        # multi_user_deploy via deployApp.sh, not by the orchestrator's
+        # container lifecycle.
+        if self._is_git_url(image):
+            logger.debug(
+                f"Skipping _create_instance for git-based service '{service_name}' "
+                f"(replica {replica_num}). Managed via deployApp.sh."
+            )
+            return
 
         logger.debug(f"Creating instance for service {service_name}")
 
