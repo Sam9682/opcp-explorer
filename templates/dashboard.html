@@ -2671,7 +2671,7 @@ function updateApplicationButtonStatus(appName, logs) {
     if (applicationStatus === 'is_not_cloned') {
         // Keep app card visible in main panel but hide from virtual agent dropdown
         appCard.style.display = '';
-        appCard.style.backgroundColor = '';
+        appCard.style.backgroundColor = '#e9ecef';
         
         // Reset action buttons background
         const actionButtonsDiv = appCard.querySelector('.app-action-buttons');
