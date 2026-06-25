@@ -118,6 +118,28 @@ sudo chmod +x /usr/local/bin/docker-compose
 rm -f get-docker.sh
 print_success "Docker installed"
 
+# Install Kata Containers
+print_step "Installing Kata Containers..."
+cd /tmp
+wget -q https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-amd64.tar.zst
+unzstd kata-static-3.32.0-amd64.tar.zst
+sudo tar xvf kata-static-3.32.0-amd64.tar > /dev/null 2>&1
+sudo mv ./opt/kata /opt/
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+    "runtimes": {
+        "kata": {
+            "runtimeType": "/opt/kata/bin/containerd-shim-kata-v2"
+        }
+    }
+}
+EOF
+sudo systemctl reload docker
+rm -f kata-static-3.32.0-amd64.tar.zst kata-static-3.32.0-amd64.tar
+cd - > /dev/null
+print_success "Kata Containers installed"
+
 # Install NVIDIA GPU Drivers and MIG Support
 print_step "Installing NVIDIA GPU drivers..."
 sudo apt install -y nvidia-driver-550 nvidia-utils-550 > /dev/null 2>&1

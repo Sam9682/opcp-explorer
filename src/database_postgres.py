@@ -561,7 +561,8 @@ def init_db():
             if cursor.fetchone()[0] == 0:
                 default_config = [
                     (None, 'agentic_engine', AI_ENGINE),
-                    (None, 'agentic_command', '')
+                    (None, 'agentic_command', ''),
+                    (None, 'runtime_type', 'runc')
                 ]
                 cursor.executemany('INSERT INTO configuration (parent, key, value) VALUES (%s, %s, %s)', default_config)
 

@@ -5,7 +5,7 @@
 AI-Powered-Store is a centralized application deployment and management platform designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP).
 
 **Core Purpose**: Enable GenAI agents to autonomously deploy, manage, and access web applications without human intervention.
-
+8
 ## Features
 
 - 🔐 User registration and authentication with Gitea integration
@@ -29,6 +29,7 @@ AI-Powered-Store is a centralized application deployment and management platform
 - 🔄 **SQLite to PostgreSQL migration tools**
 - 🎮 **MIG Shared GPU**: NVIDIA Multi-Instance GPU partitioning and management per server
 - ⚡ **Serverless Docker Execution**: Submit and run Docker-based jobs on-demand
+- 🛡️ **Container Runtime Isolation**: Support for both standard containers (runc) and MicroVM isolation (Kata Containers)
 - 🔄 **Multi-server Replication**: Peer-to-peer database replication with sync tokens
 - 🎭 **App Orchestrator**: Automated application lifecycle orchestration with reconciliation
 - 🔒 **Password Reset & 2FA**: Secure password recovery and two-factor authentication via email
@@ -238,6 +239,24 @@ curl https://www.swautomorph.com/api/jobs \
   -H "Cookie: session=your-session-cookie"
 ```
 
+### Container Runtime Isolation
+
+The platform supports two container runtime types, configurable from the **Settings** page (admin only):
+
+|       Runtime           |                                    Description                                      |                    Use Case                              |
+|-------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------|
+| **runc** (default)      | Standard OCI container runtime. Containers share the host kernel,                   | General-purpose workloads where speed and                |
+|                         |  providing lightweight and fast execution.                                          |  density are priorities.                                 |
+| **kata**                | Kata Containers runtime. Each container runs inside a dedicated lightweight MicroVM | Security-sensitive workloads, multi-tenant environments, | 
+|                         |  with its own kernel, providing hardware-level isolation.                           |  or when stronger isolation                              |
+
+**Configuration:**
+- Navigate to the **Settings** tab in the admin dashboard
+- Select the desired runtime type (`runc` or `kata`) from the dropdown
+- Click "Save Runtime Type"
+
+The `runtime_type` setting applies to application deployments and serverless Docker job execution across all servers managed by the platform.
+
 ### Dynamic Nginx Locations
 ```bash
 # Access user applications via dynamic URLs
@@ -436,6 +455,7 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 - **Deployment**: Multi-server support with capacity management, automatic allocation, and streaming APIs
 - **App Orchestrator**: Automated application lifecycle management with reconciliation loop
 - **Serverless Execution**: Docker-based job submission and execution engine with worker processes
+- **Container Runtime**: Configurable runtime type — standard containers (runc) or MicroVM isolation (Kata Containers) for stronger workload boundaries
 - **MIG Shared GPU**: NVIDIA Multi-Instance GPU partitioning via SSH with per-server configuration and web UI
 - **Replication**: Peer-to-peer database replication across multiple servers with sync tokens
 - **Nginx Proxy**: Dynamic location blocks for user applications with automatic configuration

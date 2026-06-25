@@ -782,7 +782,32 @@
     {% if username == 'admin' %}
     <div id="settingsSection" class="tab-content" style="display: none;">
         <h2>⚙️ Settings</h2>
-        
+
+        <!-- Runtime Type Setting -->
+        <div class="config-form" style="display: block; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
+            <h3>🐳 Container Runtime Type</h3>
+            <p style="margin-bottom: 10px; color: #555;">
+                Select the container runtime used for deploying applications and running serverless jobs.
+            </p>
+            <div class="form-group">
+                <label for="runtimeTypeSelect"><strong>Runtime Type:</strong></label>
+                <select id="runtimeTypeSelect" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; min-width: 200px;">
+                    <option value="runc">runc — Standard Docker containers</option>
+                    <option value="kata">kata — MicroVM (Kata Containers)</option>
+                </select>
+            </div>
+            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; border: 1px solid #ffc107;">
+                <small>
+                    <strong>runc</strong>: Default OCI runtime. Runs standard Docker containers with shared kernel — lightweight and fast.<br>
+                    <strong>kata</strong>: Kata Containers runtime. Each container runs inside a dedicated lightweight MicroVM, providing stronger workload isolation with hardware virtualization boundaries.
+                </small>
+            </div>
+            <button type="button" class="btn btn-primary" style="margin-top: 10px;" onclick="saveRuntimeType()">Save Runtime Type</button>
+            <span id="runtimeTypeSaveStatus" style="margin-left: 10px; color: green; display: none;">✓ Saved</span>
+        </div>
+
+        <hr style="margin: 20px 0;">
+
         <div class="settings-controls">
             <button class="btn btn-primary" onclick="showAddConfigForm()">Add Parameter</button>
             <button class="btn btn-secondary" onclick="refreshConfigTable()">Refresh</button>
@@ -1153,6 +1178,7 @@ function showTab(tab) {
         if (settingsSection) {
             settingsSection.style.display = 'block';
             loadConfigTable();
+            loadRuntimeType();
         }
     } else if (tab === 'orchestratorServerless') {
         if (orchestratorServerlessSection) {
@@ -5562,6 +5588,50 @@ function hideServiceCreationLoading() {
     if (overlay) {
         overlay.remove();
     }
+}
+
+// Runtime type management
+function loadRuntimeType() {
+    fetch('/api/configuration')
+        .then(response => response.json())
+        .then(data => {
+            const rtConfig = data.find(c => c.key === 'runtime_type' && !c.parent);
+            if (rtConfig) {
+                document.getElementById('runtimeTypeSelect').value = rtConfig.value;
+            }
+        })
+        .catch(error => console.error('Error loading runtime type:', error));
+}
+
+function saveRuntimeType() {
+    const newValue = document.getElementById('runtimeTypeSelect').value;
+    
+    fetch('/api/configuration')
+        .then(response => response.json())
+        .then(data => {
+            const rtConfig = data.find(c => c.key === 'runtime_type' && !c.parent);
+            if (rtConfig) {
+                return fetch(`/api/configuration/${rtConfig.param_id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({parent: null, key: 'runtime_type', value: newValue})
+                });
+            } else {
+                return fetch('/api/configuration', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({parent: null, key: 'runtime_type', value: newValue})
+                });
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const status = document.getElementById('runtimeTypeSaveStatus');
+            status.style.display = 'inline';
+            setTimeout(() => { status.style.display = 'none'; }, 3000);
+            loadConfigTable();
+        })
+        .catch(error => alert('Error saving runtime type: ' + error));
 }
 
 // Configuration management functions
