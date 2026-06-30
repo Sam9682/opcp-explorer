@@ -411,6 +411,19 @@ def init_db():
                 conn.rollback()
                 print(f"[INFO] Target link migration check: {e}")
 
+            # Make application FK constraints deferrable (required for ID updates)
+            try:
+                migration_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'migration', 'make_application_fkeys_deferrable.sql')
+                if os.path.exists(migration_path):
+                    with open(migration_path, 'r') as f:
+                        migration_sql = f.read()
+                    cursor.execute(migration_sql)
+                    conn.commit()
+            except Exception as e:
+                # Migration may already be applied, ignore errors
+                conn.rollback()
+                print(f"[INFO] Deferrable FK migration check: {e}")
+
             # Ensure opcp-serverless-brik application exists and is assigned to all users
             try:
                 cursor.execute("SELECT id FROM applications WHERE name = %s", ('opcp-serverless-brik',))
