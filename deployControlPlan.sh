@@ -67,7 +67,7 @@ NAME_OF_APPLICATION=${NAME_OF_APPLICATION:-"opcp-explorer"}
 APPLICATION_IDENTITY_NUMBER=${APPLICATION_IDENTITY_NUMBER:-0}
 RANGE_START_CONTROLPLAN=${RANGE_START_CONTROLPLAN:-80}
 RANGE_RESERVED_CONTROLPLAN=${RANGE_RESERVED_CONTROLPLAN:-0}
-S3_BUCKET_NAME=${S3_BUCKET_NAME:-"opcp-psmc-s3"}
+S3_BUCKET_NAME=${S3_BUCKET_NAME:-"opcp-s3"}
 PLTF_FOLDER=${PLTF_FOLDER:-"opcp-explorer"}
 
 # Global Parameters (command line args override config)
@@ -451,12 +451,13 @@ recover_database() {
     echo "📍 Select backup source:"
 
     if python3 -c "from simple_term_menu import TerminalMenu" 2>/dev/null; then
-        BACKUP_SOURCE=$(S3_BUCKET_NAME="$S3_BUCKET_NAME" python3 << 'EOF'
+        BACKUP_SOURCE=$(S3_BUCKET_NAME="$S3_BUCKET_NAME" NAME_OF_APPLICATION="$NAME_OF_APPLICATION" python3 << 'EOF'
 import os
 from simple_term_menu import TerminalMenu
 
-s3_bucket = os.environ.get('S3_BUCKET_NAME', 'opcp-psmc-s3')
-options = ["Local backups (./softfluid/db/backup)", f"Remote S3 backups (s3://{s3_bucket}/${NAME_OF_APPLICATION}/db/backup)"]
+s3_bucket = os.environ.get('S3_BUCKET_NAME', 'opcp-s3')
+app_name = os.environ.get('NAME_OF_APPLICATION', 'opcp-explorer')
+options = ["Local backups (./softfluid/db/backup)", f"Remote S3 backups (s3://{s3_bucket}/{app_name}/db/backup)"]
 terminal_menu = TerminalMenu(
     options,
     title="📍 Select backup source:",
