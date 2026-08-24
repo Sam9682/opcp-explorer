@@ -1148,18 +1148,20 @@ def api_server_allocate():
             return jsonify({'error': 'Application name required'}), 400
         
         # Find available server based on capacity constraints with usage counts
-        servers = db_manager.execute_query('''SELECT s.id, s.server_capacity_user_max, s.server_capacity_appli_max,
+        servers = db_manager.execute_query('''SELECT s.id, COALESCE(s.server_capacity_user_max, 100) AS server_capacity_user_max, COALESCE(s.server_capacity_appli_max, 100) AS server_capacity_appli_max,
                    COALESCE(user_counts.user_count, 0) as current_users,
                    COALESCE(app_counts.app_count, 0) as current_apps
             FROM servers s
             LEFT JOIN (
                 SELECT server_id, COUNT(DISTINCT user_id) as user_count
                 FROM deployments
+                WHERE server_id IS NOT NULL
                 GROUP BY server_id
             ) user_counts ON s.id = user_counts.server_id
             LEFT JOIN (
                 SELECT server_id, COUNT(DISTINCT application_name) as app_count
                 FROM deployments
+                WHERE server_id IS NOT NULL
                 GROUP BY server_id
             ) app_counts ON s.id = app_counts.server_id
             WHERE s.server_status = 'STAND_BY' OR s.server_status = 'ACTIVE'
@@ -1170,16 +1172,22 @@ def api_server_allocate():
             return jsonify({'error': 'No standby servers available'}), 503
         
         for server in servers:
-            server_id, user_max, appli_max, user_count, appli_count = server
-            
-            # Check if server has capacity
-            if user_count < user_max and appli_count < appli_max:
-                # Update server status to ACTIVE only if currently STAND_BY
-                db_manager.execute_query('''UPDATE servers SET server_status = 'ACTIVE' 
-                    WHERE id = %s AND server_status = 'STAND_BY'
-                ''', (server_id,))
+            try:
+                server_id, user_max, appli_max, user_count, appli_count = server
                 
-                return jsonify({'server_id': server_id})
+                # Check if server has capacity
+                if user_count < user_max and appli_count < appli_max:
+                    # Update server status to ACTIVE only if currently STAND_BY
+                    db_manager.execute_query('''UPDATE servers SET server_status = 'ACTIVE' 
+                        WHERE id = %s AND server_status = 'STAND_BY'
+                    ''', (server_id,))
+                    
+                    return jsonify({'server_id': server_id})
+            except Exception as server_error:
+                # A problematic candidate server must not abort evaluation of the
+                # remaining servers; log and skip to the next candidate.
+                logger.warning(f"[SERVER ALLOCATE] Skipping server {server} due to evaluation error: {str(server_error)}")
+                continue
         
         return jsonify({'error': 'All servers at capacity'}), 503
         
