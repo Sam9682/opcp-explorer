@@ -1290,6 +1290,12 @@ def _handle_clone_action(user_id, app_name, git_url, server_id, deployment_path,
         return jsonify({'error': f'Server {server_id} not found'}), 400
     
     target_server_ip = target_server[0]
+
+    # Req 4.1: reject a resolved-but-unusable server IP before any command is built
+    if target_server_ip is None or (isinstance(target_server_ip, str) and not target_server_ip.strip()):
+        logger.error(f"[DEPLOYMENT API] CLONE - FAILED - Server {server_id} has no usable IP address")
+        return jsonify({'error': f'Server {server_id} has no usable IP address'}), 400
+
     is_local_server = (target_server_ip == current_server_ip or target_server_ip == "127.0.0.1" or target_server_ip == "localhost")
     
     # Determine if git_url is GitHub or Gitea/localhost
