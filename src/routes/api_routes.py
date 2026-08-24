@@ -1431,6 +1431,7 @@ def _handle_clone_action(user_id, app_name, git_url, server_id, deployment_path,
         # test if is_github then display CLONE else SWITCH in the error message
         error_msg = f'Git {"clone" if is_github else "switch"} failed: {result.stderr}'
         logger.error(f"[DEPLOYMENT API] GIT - FAILED - {error_msg}")
+        logger.error(f"[DEPLOYMENT API] GIT - CMD = {ssh_command}")
         return jsonify({'error': error_msg, 'logs': ssl_result.stdout}), 400
     
     return jsonify({'message': f'Clone completed for {app_name}', 'status': status, 'logs': ssl_result.stdout}), 202
