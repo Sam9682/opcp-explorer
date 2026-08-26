@@ -11,7 +11,7 @@ import socket
 import logging
 from datetime import datetime
 from .. import config_postgres
-from ..config_postgres import DOMAIN, TIMEOUT_GITEA_HTTP_POST, TIMEOUT_SUBPROCESS_RUN
+from ..config_postgres import DOMAIN, TIMEOUT_GITEA_HTTP_POST, TIMEOUT_SUBPROCESS_RUN, LINUX_USER_INSTALLATION, ssh_target, chown_arg, deployments_prefix, is_under_deployments
 
 # Configure logging for API activities
 logger = logging.getLogger(__name__)
@@ -1303,7 +1303,7 @@ def _handle_clone_action(user_id, app_name, git_url, server_id, deployment_path,
     
     # Execute clone operation
     git_env = os.environ.copy()
-    git_env.update({'GIT_CONFIG_NOSYSTEM': '1', 'HOME': '/home/ubuntu', 'USER': 'ubuntu'})
+    git_env.update({'GIT_CONFIG_NOSYSTEM': '1', 'HOME': f'/home/{LINUX_USER_INSTALLATION}', 'USER': LINUX_USER_INSTALLATION})
     
     if is_local_server:
         if is_github:
@@ -1341,12 +1341,12 @@ def _handle_clone_action(user_id, app_name, git_url, server_id, deployment_path,
                 f"mkdir -p {deployment_path}",
                 f"cd {os.path.dirname(deployment_path)} && git clone --recurse-submodules {git_url} {os.path.basename(deployment_path)}"
             ]
-            ssh_command = f"ssh -o StrictHostKeyChecking=no ubuntu@{target_server_ip} '{'; '.join(ssh_commands)}'"
+            ssh_command = f"ssh -o StrictHostKeyChecking=no {ssh_target(LINUX_USER_INSTALLATION, target_server_ip)} '{'; '.join(ssh_commands)}'"
             result = subprocess.run(ssh_command, shell=True, capture_output=True, text=True, timeout=TIMEOUT_SUBPROCESS_RUN)
             logger.info(f"[DEPLOYMENT API] CLONE - GitHub remote: git clone --recurse-submodules {git_url} {deployment_path}")
         else:
             # Gitea/localhost: Use fetch and switch
-            ssh_command = f"ssh -o StrictHostKeyChecking=no ubuntu@{target_server_ip} 'if [ -d {deployment_path} ]; then cd {deployment_path} && git fetch --all && git remote set-url origin {git_url} && git checkout -B main origin/main; else mkdir -p {deployment_path} && git clone --recurse-submodules {git_url} {deployment_path}; fi'"
+            ssh_command = f"ssh -o StrictHostKeyChecking=no {ssh_target(LINUX_USER_INSTALLATION, target_server_ip)} 'if [ -d {deployment_path} ]; then cd {deployment_path} && git fetch --all && git remote set-url origin {git_url} && git checkout -B main origin/main; else mkdir -p {deployment_path} && git clone --recurse-submodules {git_url} {deployment_path}; fi'"
             result = subprocess.run(ssh_command, shell=True, capture_output=True, text=True, timeout=TIMEOUT_SUBPROCESS_RUN)
             logger.info(f"[DEPLOYMENT API] CLONE - Gitea/localhost remote: git fetch and switch to {git_url}")
     
@@ -1382,12 +1382,12 @@ def _handle_clone_action(user_id, app_name, git_url, server_id, deployment_path,
         
         # Copy SSL certificates after successful clone
         ssl_env = os.environ.copy()
-        ssl_env['USER'] = 'ubuntu'
+        ssl_env['USER'] = LINUX_USER_INSTALLATION
         
         if is_local_server:
-            ssl_command = f"mkdir -p {deployment_path}/ssl && if [ -f {PROJECT_ROOT}/ssl/fullchain_domain.crt ] && [ -f {PROJECT_ROOT}/ssl/privateKey_domain.key ]; then cp {PROJECT_ROOT}/ssl/fullchain_domain.crt {deployment_path}/ssl/fullchain.pem && cp {PROJECT_ROOT}/ssl/privateKey_domain.key {deployment_path}/ssl/privkey.pem && chmod 600 {deployment_path}/ssl/*.pem; elif command -v certbot > /dev/null 2>&1; then sudo certbot certonly --standalone -d www.{DOMAIN} --email admin@{DOMAIN} --agree-tos --non-interactive --quiet && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/fullchain.pem {deployment_path}/ssl/ && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/privkey.pem {deployment_path}/ssl/ && sudo chown -R ubuntu:ubuntu {deployment_path}/ssl/ && chmod 600 {deployment_path}/ssl/*.pem; fi"
+            ssl_command = f"mkdir -p {deployment_path}/ssl && if [ -f {PROJECT_ROOT}/ssl/fullchain_domain.crt ] && [ -f {PROJECT_ROOT}/ssl/privateKey_domain.key ]; then cp {PROJECT_ROOT}/ssl/fullchain_domain.crt {deployment_path}/ssl/fullchain.pem && cp {PROJECT_ROOT}/ssl/privateKey_domain.key {deployment_path}/ssl/privkey.pem && chmod 600 {deployment_path}/ssl/*.pem; elif command -v certbot > /dev/null 2>&1; then sudo certbot certonly --standalone -d www.{DOMAIN} --email admin@{DOMAIN} --agree-tos --non-interactive --quiet && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/fullchain.pem {deployment_path}/ssl/ && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/privkey.pem {deployment_path}/ssl/ && sudo chown -R {chown_arg(LINUX_USER_INSTALLATION)} {deployment_path}/ssl/ && chmod 600 {deployment_path}/ssl/*.pem; fi"
         else:
-            ssl_command = f"ssh -o StrictHostKeyChecking=no ubuntu@{target_server_ip} 'mkdir -p {deployment_path}/ssl && if [ -f {PROJECT_ROOT}/ssl/fullchain_domain.crt ] && [ -f {PROJECT_ROOT}/ssl/privateKey_domain.key ]; then cp {PROJECT_ROOT}/ssl/fullchain_domain.crt {deployment_path}/ssl/fullchain.pem && cp {PROJECT_ROOT}/ssl/privateKey_domain.key {deployment_path}/ssl/privkey.pem && chmod 600 {deployment_path}/ssl/*.pem; elif command -v certbot > /dev/null 2>&1; then sudo systemctl stop nginx 2>/dev/null || true && sudo certbot certonly --standalone -d www.{DOMAIN} --email admin@{DOMAIN} --agree-tos --non-interactive --quiet && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/fullchain.pem {deployment_path}/ssl/ && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/privkey.pem {deployment_path}/ssl/ && sudo chown -R ubuntu:ubuntu {deployment_path}/ssl/ && chmod 600 {deployment_path}/ssl/*.pem; fi'"
+            ssl_command = f"ssh -o StrictHostKeyChecking=no {ssh_target(LINUX_USER_INSTALLATION, target_server_ip)} 'mkdir -p {deployment_path}/ssl && if [ -f {PROJECT_ROOT}/ssl/fullchain_domain.crt ] && [ -f {PROJECT_ROOT}/ssl/privateKey_domain.key ]; then cp {PROJECT_ROOT}/ssl/fullchain_domain.crt {deployment_path}/ssl/fullchain.pem && cp {PROJECT_ROOT}/ssl/privateKey_domain.key {deployment_path}/ssl/privkey.pem && chmod 600 {deployment_path}/ssl/*.pem; elif command -v certbot > /dev/null 2>&1; then sudo systemctl stop nginx 2>/dev/null || true && sudo certbot certonly --standalone -d www.{DOMAIN} --email admin@{DOMAIN} --agree-tos --non-interactive --quiet && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/fullchain.pem {deployment_path}/ssl/ && sudo cp /etc/letsencrypt/live/www.{DOMAIN}/privkey.pem {deployment_path}/ssl/ && sudo chown -R {chown_arg(LINUX_USER_INSTALLATION)} {deployment_path}/ssl/ && chmod 600 {deployment_path}/ssl/*.pem; fi'"
 
         ssl_result = subprocess.run(ssl_command, shell=True, capture_output=True, text=True, env=ssl_env)
         logger.info(f"[DEPLOYMENT API] CLONE - SSL setup result: {ssl_result.returncode}, stdout: {ssl_result.stdout}, stderr: {ssl_result.stderr}")
@@ -1596,7 +1596,7 @@ def api_deployments():
             )
             username = user[0] if user else f'user_{session["user_id"]}'
         
-        deployment_path = f'/home/ubuntu/deployments/{username}/{app_name.lower().replace(" ", "-")}'
+        deployment_path = f'{deployments_prefix(LINUX_USER_INSTALLATION)}{username}/{app_name.lower().replace(" ", "-")}'
         
         try:
             if action == 'clone':
@@ -1637,14 +1637,14 @@ def api_deployment_logs(deployment_id):
     deploy_path = str(deployment[0] if isinstance(deployment, (list, tuple)) else deployment)
     
     # Validate deployment path to prevent path traversal
-    if not deploy_path or '..' in deploy_path or not deploy_path.startswith('/home/ubuntu/deployments/'):
+    if not deploy_path or not is_under_deployments(LINUX_USER_INSTALLATION, deploy_path):
         logger.warning(f"[DEPLOYMENT LOGS] SECURITY - Invalid deployment path: {deploy_path} for user {user_id}")
         return jsonify({'error': 'Invalid deployment path'}), 400
     
     log_file = os.path.join(deploy_path, 'deployment.log')
     
     # Additional security check for log file path
-    if not log_file.startswith('/home/ubuntu/deployments/') or '..' in log_file:
+    if not is_under_deployments(LINUX_USER_INSTALLATION, log_file):
         logger.warning(f"[DEPLOYMENT LOGS] SECURITY - Invalid log file path: {log_file} for user {user_id}")
         return jsonify({'error': 'Invalid log file path'}), 400
     

@@ -5,14 +5,17 @@ Requires=postgresql.service
 
 [Service]
 Type=simple
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/home/ubuntu/opcp-cloudstore-docker-ai
+# STATIC UNIT: systemd does not expand shell variables in User=/Group=/WorkingDirectory=/Environment=.
+# The install user below uses the psmc fallback default (LINUX_USER_INSTALLATION in conf/deploy.ini).
+# Changing the install user requires manually editing/regenerating this unit; it is not derived at runtime.
+User=psmc
+Group=psmc
+WorkingDirectory=/home/psmc/opcp-cloudstore-docker-ai
 ExecStart=/usr/bin/python3 -m src.serverless.worker
 Restart=always
 RestartSec=5
 Environment=WORKER_ID=worker-001
-Environment=PYTHONPATH=/home/ubuntu/opcp-cloudstore-docker-ai
+Environment=PYTHONPATH=/home/psmc/opcp-cloudstore-docker-ai
 
 [Install]
 WantedBy=multi-user.target

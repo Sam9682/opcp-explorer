@@ -777,7 +777,21 @@ def install_as_systemctl_service():
         except Exception:
             pass
     
-    base_path = f'/home/ubuntu/{pltf_folder}'
+    # Load LINUX_USER_INSTALLATION from deploy.ini
+    linux_user = 'psmc'
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('LINUX_USER_INSTALLATION'):
+                        value = line.split('=', 1)[1].strip().strip("'\"")
+                        if value:
+                            linux_user = value
+                        break
+        except Exception:
+            pass
+    
+    base_path = f'/home/{linux_user}/{pltf_folder}'
     systemd_path = '/etc/systemd/system/swautomorph-controlplan.service'
     
     # Generate service file content with correct paths
@@ -790,7 +804,7 @@ Type=forking
 ExecStart={base_path}/scripts/start_swautomorph_controlplan.sh
 ExecStop={base_path}/scripts/stop_swautomorph_controlplan.sh
 WorkingDirectory={base_path}
-User=ubuntu
+User={linux_user}
 
 [Install]
 WantedBy=multi-user.target

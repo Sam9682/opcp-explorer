@@ -101,10 +101,28 @@ def get_version():
     return '0.0.1'
 
 
+# Linux installation user from deploy.ini
+def get_linux_user():
+    """Get Linux installation user from deploy.ini"""
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        config_path = os.path.join(base_dir, 'conf', 'deploy.ini')
+        with open(config_path, 'r') as f:
+            for line in f:
+                if line.strip().startswith('LINUX_USER_INSTALLATION'):
+                    value = line.split('=', 1)[1].strip().strip("'\"")
+                    if value:
+                        return value
+    except Exception as e:
+        logger.error(f'Failed to read LINUX_USER_INSTALLATION from deploy.ini: {e}')
+    return 'psmc'
+
+
 PLTF_NAME = get_platform_name()
 PLTF_FOLDER = get_platform_folder()
 DOMAIN = get_domain_name()
 APP_VERSION = get_version()
+LINUX_USER_INSTALLATION = get_linux_user()
 
 # CORS configuration
 CORS_ORIGINS = [
@@ -159,7 +177,7 @@ def get_shai_paths():
     home_dir = os.path.expanduser('~')
     qchat_paths = [
         os.path.join(home_dir, '.local', 'bin', 'shai'),
-        '/home/ubuntu/.local/bin/shai',
+        f'/home/{LINUX_USER_INSTALLATION}/.local/bin/shai',
         '/usr/local/bin/shai',
         '/usr/bin/shai',
         'shai'
@@ -726,3 +744,42 @@ TRANSLATIONS = {
         'verify': 'Vérifier'
     }
 }
+
+
+# Pure path/command helpers for the configurable Linux installation user.
+# These are side-effect-free string builders consumed with LINUX_USER_INSTALLATION.
+def home_path(user, *suffix_parts):
+    """Build /home/<user>/<suffix...>.
+
+    Joins the given suffix parts under the user's home directory using '/'.
+    With no suffix parts, returns '/home/<user>'.
+    """
+    base = f'/home/{user}'
+    parts = [str(part).strip('/') for part in suffix_parts if str(part) != '']
+    if parts:
+        return base + '/' + '/'.join(parts)
+    return base
+
+
+def deployments_prefix(user):
+    """Return the deployments path prefix '/home/<user>/deployments/'."""
+    return f'/home/{user}/deployments/'
+
+
+def ssh_target(user, host):
+    """Return an SSH target of the form '<user>@<host>'."""
+    return f'{user}@{host}'
+
+
+def chown_arg(user):
+    """Return an ownership argument of the form '<user>:<user>'."""
+    return f'{user}:{user}'
+
+
+def is_under_deployments(user, path):
+    """Return True iff path is under the user's deployments prefix and safe.
+
+    True only when path starts with deployments_prefix(user) and contains no
+    '..' path traversal component.
+    """
+    return path.startswith(deployments_prefix(user)) and '..' not in path

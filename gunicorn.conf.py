@@ -16,6 +16,22 @@ def _get_pltf_folder():
 
 PLTF_FOLDER = _get_pltf_folder()
 
+# Load LINUX_USER_INSTALLATION from deploy.ini
+def _get_linux_user():
+    try:
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'conf', 'deploy.ini')
+        with open(config_path, 'r') as f:
+            for line in f:
+                if line.strip().startswith('LINUX_USER_INSTALLATION'):
+                    value = line.split('=', 1)[1].strip().strip("'\"")
+                    if value:
+                        return value
+    except Exception:
+        pass
+    return 'psmc'
+
+LINUX_USER_INSTALLATION = _get_linux_user()
+
 # Server socket
 bind = "127.0.0.1:5000"
 backlog = 2048
@@ -56,6 +72,6 @@ reload = os.environ.get('FLASK_ENV') == 'development'
 
 # Environment variables
 raw_env = [
-    f'PYTHONPATH=/home/ubuntu/{PLTF_FOLDER}',
+    f'PYTHONPATH=/home/{LINUX_USER_INSTALLATION}/{PLTF_FOLDER}',
     'USE_POSTGRES=true'
 ]

@@ -9,12 +9,12 @@ from datetime import datetime
 
 # Add project root to path to import config
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from src.config_postgres import PLTF_FOLDER
+from src.config_postgres import PLTF_FOLDER, LINUX_USER_INSTALLATION
 
 def recover_database():
     """Recover corrupted database by creating a new one"""
     
-    db_path = f"/home/ubuntu/{PLTF_FOLDER}/softfluid/db/ai_swautomorph.db"
+    db_path = f"/home/{LINUX_USER_INSTALLATION}/{PLTF_FOLDER}/softfluid/db/ai_swautomorph.db"
     backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     print("Starting database recovery...")
@@ -33,7 +33,7 @@ def recover_database():
     
     # 3. Initialize new database using the app's init function
     try:
-        sys.path.append(f'/home/ubuntu/{PLTF_FOLDER}')
+        sys.path.append(f'/home/{LINUX_USER_INSTALLATION}/{PLTF_FOLDER}')
         from src.database_postgres import init_db
         
         print("Initializing new database...")

@@ -220,7 +220,7 @@ def create_service():
         
         # Deploy application using deployApp.sh
         try:
-            app_dir = f'/home/ubuntu/deployments/{username}/{name.lower().replace(" ", "-")}'
+            app_dir = f'/home/{config_postgres.LINUX_USER_INSTALLATION}/deployments/{username}/{name.lower().replace(" ", "-")}'
             deploy_script = f'{app_dir}/deployApp.sh'
             
             logger.info(f"App directory: {app_dir}")
@@ -231,7 +231,7 @@ def create_service():
                 'ssh',
                 '-o', 'StrictHostKeyChecking=no',
                 '-o', 'UserKnownHostsFile=/dev/null',
-                f'ubuntu@{server_ip}',
+                f'{config_postgres.LINUX_USER_INSTALLATION}@{server_ip}',
                 f'cd {app_dir} && {deploy_script} start {user_id} {username}'
             ]
             
@@ -618,7 +618,7 @@ def multi_user_deploy():
                     logger.info(f"[MULTI-USER DEPLOY] App '{app_name}' already assigned to user '{replica_username}'")
                 
                 # Step 3: Clone the application into the user's deployment folder
-                deployment_path = f'/home/ubuntu/deployments/{replica_username}/{app_name.lower().replace(" ", "-")}'
+                deployment_path = f'/home/{config_postgres.LINUX_USER_INSTALLATION}/deployments/{replica_username}/{app_name.lower().replace(" ", "-")}'
                 
                 # Determine if local or remote
                 try:
@@ -632,7 +632,7 @@ def multi_user_deploy():
                 is_local = (str(server_ip) == current_server_ip or str(server_ip) in ["127.0.0.1", "localhost"])
                 
                 git_env = os.environ.copy()
-                git_env.update({'GIT_CONFIG_NOSYSTEM': '1', 'HOME': '/home/ubuntu', 'USER': 'ubuntu'})
+                git_env.update({'GIT_CONFIG_NOSYSTEM': '1', 'HOME': f'/home/{config_postgres.LINUX_USER_INSTALLATION}', 'USER': config_postgres.LINUX_USER_INSTALLATION})
                 
                 if is_local:
                     # Local clone
@@ -650,7 +650,7 @@ def multi_user_deploy():
                         )
                 else:
                     # Remote clone via SSH
-                    ssh_cmd = f"ssh -o StrictHostKeyChecking=no ubuntu@{server_ip} 'mkdir -p {deployment_path} && if [ -d {deployment_path}/.git ]; then cd {deployment_path} && git pull --recurse-submodules; else git clone --recurse-submodules {git_url} {deployment_path}; fi'"
+                    ssh_cmd = f"ssh -o StrictHostKeyChecking=no {config_postgres.LINUX_USER_INSTALLATION}@{server_ip} 'mkdir -p {deployment_path} && if [ -d {deployment_path}/.git ]; then cd {deployment_path} && git pull --recurse-submodules; else git clone --recurse-submodules {git_url} {deployment_path}; fi'"
                     clone_result = subprocess.run(
                         ssh_cmd, shell=True, capture_output=True, text=True, timeout=300
                     )
@@ -700,7 +700,7 @@ def multi_user_deploy():
                 else:
                     ssh_start_cmd = [
                         'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
-                        f'ubuntu@{server_ip}',
+                        f'{config_postgres.LINUX_USER_INSTALLATION}@{server_ip}',
                         f'cd {deployment_path} && ./deployApp.sh start {replica_user_id} {replica_username}'
                     ]
                     start_result = subprocess.run(
