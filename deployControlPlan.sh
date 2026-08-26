@@ -40,6 +40,10 @@ load_config() {
 # Load configuration first
 load_config
 
+# Local temporary directory (in the application folder instead of system /tmp)
+TMP_DIR="./tmp"
+mkdir -p "$TMP_DIR"
+
 # Activate virtual environment if it exists
 if [ -d ".venv" ]; then
     echo "🐍 Activating virtual environment..."
@@ -69,6 +73,7 @@ RANGE_START_CONTROLPLAN=${RANGE_START_CONTROLPLAN:-80}
 RANGE_RESERVED_CONTROLPLAN=${RANGE_RESERVED_CONTROLPLAN:-0}
 S3_BUCKET_NAME=${S3_BUCKET_NAME:-"opcp-s3"}
 PLTF_FOLDER=${PLTF_FOLDER:-"opcp-explorer"}
+LINUX_USER_INSTALLATION=${LINUX_USER_INSTALLATION:-"ubuntu"}
 
 # Global Parameters (command line args override config)
 COMMAND=${1:-help}
@@ -541,12 +546,12 @@ EOF
 
         # Select server
         if python3 -c "from simple_term_menu import TerminalMenu" 2>/dev/null; then
-            printf '%s\n' "${SERVER_IPS[@]}" > /tmp/server_ips.txt
+            printf '%s\n' "${SERVER_IPS[@]}" > "$TMP_DIR/server_ips.txt"
 
             SELECTED_SERVER=$(python3 << 'EOF'
 from simple_term_menu import TerminalMenu
 
-with open('/tmp/server_ips.txt', 'r') as f:
+with open('./tmp/server_ips.txt', 'r') as f:
     server_ips = [line.strip() for line in f if line.strip()]
 
 terminal_menu = TerminalMenu(
@@ -565,7 +570,7 @@ if menu_entry_index is not None:
     print(selected)
 EOF
 )
-            rm -f /tmp/server_ips.txt
+            rm -f "$TMP_DIR/server_ips.txt"
         else
             # Fallback to numbered selection
             echo "Available servers:"
@@ -625,12 +630,12 @@ EOF
     # Use simple-term-menu for backup selection
     if python3 -c "from simple_term_menu import TerminalMenu" 2>/dev/null; then
         # Create temporary file with backup dates
-        printf '%s\n' "${BACKUP_DATES[@]}" > /tmp/backup_dates.txt
+        printf '%s\n' "${BACKUP_DATES[@]}" > "$TMP_DIR/backup_dates.txt"
 
         SELECTED_BACKUP=$(python3 << 'EOF'
 from simple_term_menu import TerminalMenu
 
-with open('/tmp/backup_dates.txt', 'r') as f:
+with open('./tmp/backup_dates.txt', 'r') as f:
     backup_dates = [line.strip() for line in f if line.strip()]
 
 terminal_menu = TerminalMenu(
@@ -647,7 +652,7 @@ if menu_entry_index is not None:
     print(backup_dates[menu_entry_index])
 EOF
 )
-        rm -f /tmp/backup_dates.txt
+        rm -f "$TMP_DIR/backup_dates.txt"
     else
         # Fallback to numbered selection
         echo "📅 Available backup dates:"
@@ -904,7 +909,7 @@ remove_gitea() {
     # Remove configuration and data
     sudo rm -rf /etc/gitea
     sudo rm -rf /var/lib/gitea
-    sudo rm -rf /home/ubuntu/admin
+    sudo rm -rf /home/${LINUX_USER_INSTALLATION}/admin
 
     # Remove git user
     sudo userdel git 2>/dev/null || true
@@ -1288,8 +1293,8 @@ setup_gitea() {
         echo "  📦 Installing Gitea..."
 
         # Download and install Gitea
-        wget -O /tmp/gitea https://dl.gitea.io/gitea/1.21.3/gitea-1.21.3-linux-amd64
-        sudo mv /tmp/gitea /usr/local/bin/gitea
+        wget -O "$TMP_DIR/gitea" https://dl.gitea.io/gitea/1.21.3/gitea-1.21.3-linux-amd64
+        sudo mv "$TMP_DIR/gitea" /usr/local/bin/gitea
         sudo chmod +x /usr/local/bin/gitea
 
         # Create gitea user
@@ -1366,21 +1371,21 @@ configure_gitea() {
     echo "  ⚙️ Configuring Gitea..."
 
     # Create required directories
-    sudo mkdir -p /home/ubuntu/admin
-    sudo mkdir -p /home/ubuntu/admin/db
-    sudo mkdir -p /home/ubuntu/admin/data
-    sudo mkdir -p /home/ubuntu/admin/data/gitea-repositories
-    sudo chown -R git:git /home/ubuntu/admin
-    sudo chmod a+w /home/ubuntu/admin/db/gitea.db
+    sudo mkdir -p /home/${LINUX_USER_INSTALLATION}/admin
+    sudo mkdir -p /home/${LINUX_USER_INSTALLATION}/admin/db
+    sudo mkdir -p /home/${LINUX_USER_INSTALLATION}/admin/data
+    sudo mkdir -p /home/${LINUX_USER_INSTALLATION}/admin/data/gitea-repositories
+    sudo chown -R git:git /home/${LINUX_USER_INSTALLATION}/admin
+    sudo chmod a+w /home/${LINUX_USER_INSTALLATION}/admin/db/gitea.db
 
     # Create Gitea configuration
     sudo tee /etc/gitea/app.ini > /dev/null << EOF
 [database]
 DB_TYPE = sqlite3
-PATH = /home/ubuntu/admin/db/gitea.db
+PATH = /home/${LINUX_USER_INSTALLATION}/admin/db/gitea.db
 
 [repository]
-ROOT = /home/ubuntu/admin/data/gitea-repositories
+ROOT = /home/${LINUX_USER_INSTALLATION}/admin/data/gitea-repositories
 
 [server]
 DOMAIN = www.${S3_BUCKET_NAME}.com
@@ -1406,7 +1411,7 @@ DISABLE_QUERY_AUTH_TOKEN = true
 
 [git.lfs]
 START_SERVER = true
-CONTENT_PATH = /home/ubuntu/admin
+CONTENT_PATH = /home/${LINUX_USER_INSTALLATION}/admin
 
 [repository]
 ENABLE_PUSH_CREATE_USER = true
@@ -1479,16 +1484,16 @@ setup_api_token() {
         --token-name "api-access" \
         --scopes "write:admin,write:user,write:repository" \
         --config /etc/gitea/app.ini \
-        --work-path /var/lib/gitea 2>/dev/null | grep -o '[a-f0-9]\{40\}' > /tmp/gitea_token_temp 2>/dev/null || true
+        --work-path /var/lib/gitea 2>/dev/null | grep -o '[a-f0-9]\{40\}' > "$TMP_DIR/gitea_token_temp" 2>/dev/null || true
 
-    if [ -f "/tmp/gitea_token_temp" ] && [ -s "/tmp/gitea_token_temp" ]; then
-        TOKEN=$(cat /tmp/gitea_token_temp)
-        echo "$TOKEN" > /tmp/gitea_admin_token
-        chmod 600 /tmp/gitea_admin_token
-        rm -f /tmp/gitea_token_temp
-        echo "  ✅ API token created and saved to /tmp/gitea_admin_token"
+    if [ -f "$TMP_DIR/gitea_token_temp" ] && [ -s "$TMP_DIR/gitea_token_temp" ]; then
+        TOKEN=$(cat "$TMP_DIR/gitea_token_temp")
+        echo "$TOKEN" > "$TMP_DIR/gitea_admin_token"
+        chmod 600 "$TMP_DIR/gitea_admin_token"
+        rm -f "$TMP_DIR/gitea_token_temp"
+        echo "  ✅ API token created and saved to $TMP_DIR/gitea_admin_token"
     else
-        rm -f /tmp/gitea_token_temp
+        rm -f "$TMP_DIR/gitea_token_temp"
         echo "  ⚠️ Could not generate API token automatically (timeout or error)"
         echo "  📝 Manual token creation: Login to http://localhost:3000 > Settings > Applications"
     fi
@@ -1578,7 +1583,7 @@ start_flask_application() {
         export POSTGRES_USER=${POSTGRES_USER:-swautomorph}
         export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-swautomorph_password}
         export USE_POSTGRES=true
-        export PYTHONPATH=/home/ubuntu/${NAME_OF_APPLICATION}
+        export PYTHONPATH=/home/${LINUX_USER_INSTALLATION}/${NAME_OF_APPLICATION}
 
         if python3 ./scripts/aipoweredstore_cli.py init-db; then
             echo "  ✅ Database initialized successfully"
@@ -1596,8 +1601,8 @@ start_flask_application() {
         GUNICORN_CMD=".venv/bin/gunicorn"
     elif command -v gunicorn >/dev/null 2>&1; then
         GUNICORN_CMD="gunicorn"
-    elif [ -f "/home/ubuntu/.local/bin/gunicorn" ]; then
-        GUNICORN_CMD="/home/ubuntu/.local/bin/gunicorn"
+    elif [ -f "/home/${LINUX_USER_INSTALLATION}/.local/bin/gunicorn" ]; then
+        GUNICORN_CMD="/home/${LINUX_USER_INSTALLATION}/.local/bin/gunicorn"
     elif python3 -c "import gunicorn" >/dev/null 2>&1; then
         GUNICORN_CMD="python3 -m gunicorn"
     else
@@ -1666,7 +1671,7 @@ enable_modsecurity_module() {
 
 create_nginx_config() {
     # Start with empty config
-    > /tmp/${NAME_OF_APPLICATION}-site
+    > $TMP_DIR/${NAME_OF_APPLICATION}-site
 
     # Process secondary domains first
     if [ -n "${SECONDARY_DOMAINS:-}" ]; then
@@ -1680,13 +1685,13 @@ create_nginx_config() {
             proxy_pass=$(echo "$proxy_pass" | xargs)
 
             if [ -n "$domain" ] && [ -n "$server_names" ]; then
-                cat >> /tmp/${NAME_OF_APPLICATION}-site << EOF
+                cat >> $TMP_DIR/${NAME_OF_APPLICATION}-site << EOF
 server {
     listen 443 ssl;
     server_name ${server_names};
 
-    ssl_certificate /home/ubuntu/${PLTF_FOLDER}/ssl/${domain}/fullchain_domain.crt;
-    ssl_certificate_key /home/ubuntu/${PLTF_FOLDER}/ssl/${domain}/privateKey_domain.key;
+    ssl_certificate /home/${LINUX_USER_INSTALLATION}/${PLTF_FOLDER}/ssl/${domain}/fullchain_domain.crt;
+    ssl_certificate_key /home/${LINUX_USER_INSTALLATION}/${PLTF_FOLDER}/ssl/${domain}/privateKey_domain.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
@@ -1705,7 +1710,7 @@ EOF
     fi
 
     # HTTP redirect for main domain
-    cat >> /tmp/${NAME_OF_APPLICATION}-site << EOF
+    cat >> $TMP_DIR/${NAME_OF_APPLICATION}-site << EOF
 server {
     listen 80;
     server_name ${DOMAIN} www.${DOMAIN};
@@ -1715,20 +1720,20 @@ server {
 EOF
 
     # Main domain HTTPS server block
-    cat >> /tmp/${NAME_OF_APPLICATION}-site << EOF
+    cat >> $TMP_DIR/${NAME_OF_APPLICATION}-site << EOF
 server {
     listen 443 ssl;
     server_name ${DOMAIN} www.${DOMAIN};
 
-    ssl_certificate /home/ubuntu/${PLTF_FOLDER}/ssl/${DOMAIN}/fullchain_domain.crt;
-    ssl_certificate_key /home/ubuntu/${PLTF_FOLDER}/ssl/${DOMAIN}/privateKey_domain.key;
+    ssl_certificate /home/${LINUX_USER_INSTALLATION}/${PLTF_FOLDER}/ssl/${DOMAIN}/fullchain_domain.crt;
+    ssl_certificate_key /home/${LINUX_USER_INSTALLATION}/${PLTF_FOLDER}/ssl/${DOMAIN}/privateKey_domain.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 EOF
 
     # Add ModSecurity configuration only if available
     if [ "${MODSECURITY_AVAILABLE:-false}" = "true" ]; then
-        cat >> /tmp/${NAME_OF_APPLICATION}-site << EOF
+        cat >> $TMP_DIR/${NAME_OF_APPLICATION}-site << EOF
 
     # WAF Protection
     modsecurity on;
@@ -1740,7 +1745,7 @@ EOF
     fi
 
     # Add location blocks for main domain
-    cat >> /tmp/${NAME_OF_APPLICATION}-site << EOF
+    cat >> $TMP_DIR/${NAME_OF_APPLICATION}-site << EOF
 
     location / {
         proxy_pass http://localhost:${FLASK_PORT:-5000};
@@ -1774,7 +1779,7 @@ EOF
 }
 
 enable_nginx_site() {
-    sudo mv /tmp/${NAME_OF_APPLICATION}-site /etc/nginx/sites-available/${NAME_OF_APPLICATION}
+    sudo mv $TMP_DIR/${NAME_OF_APPLICATION}-site /etc/nginx/sites-available/${NAME_OF_APPLICATION}
     sudo ln -sf /etc/nginx/sites-available/${NAME_OF_APPLICATION} /etc/nginx/sites-enabled/
 }
 
