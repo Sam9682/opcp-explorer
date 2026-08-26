@@ -478,21 +478,30 @@ def init_db():
                 conn.rollback()
                 print(f"[INFO] opcp-serverless-brik setup check: {e}")
 
-            # Insert default applications if none exist
-            cursor.execute('SELECT COUNT(*) FROM applications')
-            if cursor.fetchone()[0] == 0:
-                default_apps = load_default_apps()
-                if default_apps:
-                    cursor.executemany('''
-                        INSERT INTO applications (name, description, git_url, git_repo_size, docker_build_duration, docker_start_duration, docker_stop_duration, docker_ps_duration)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ''', default_apps)
+            # Insert default applications from conf/default_apps.
+            # Use ON CONFLICT so this is idempotent and independent of whether
+            # the applications table is already partially populated (e.g. the
+            # opcp-serverless-brik record inserted above). Previously this was
+            # guarded by "COUNT(*) == 0", but since the serverless-brik block
+            # always inserts a row first, the count was never zero and the
+            # default apps were never loaded.
+            default_apps = load_default_apps()
+            if default_apps:
+                cursor.executemany('''
+                    INSERT INTO applications (name, description, git_url, git_repo_size, docker_build_duration, docker_start_duration, docker_stop_duration, docker_ps_duration)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (name) DO NOTHING
+                ''', default_apps)
 
-                # Insert default costs for applications
-                cursor.execute('SELECT id FROM applications')
-                app_ids = cursor.fetchall()
-                for app_id in app_ids:
-                    cursor.execute('INSERT INTO application_costs (application_id, cost_per_day) VALUES (%s, %s)', (app_id[0], 1.0))
+            # Insert default costs for any application that doesn't have one yet
+            cursor.execute('''
+                SELECT a.id FROM applications a
+                LEFT JOIN application_costs c ON c.application_id = a.id
+                WHERE c.id IS NULL
+            ''')
+            app_ids = cursor.fetchall()
+            for app_id in app_ids:
+                cursor.execute('INSERT INTO application_costs (application_id, cost_per_day) VALUES (%s, %s)', (app_id[0], 1.0))
 
             # Insert current server if none exists
             cursor.execute('SELECT COUNT(*) FROM servers')
