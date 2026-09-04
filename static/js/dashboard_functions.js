@@ -547,3 +547,364 @@ function escapeHtml(text) {
     div.appendChild(document.createTextNode(text));
     return div.innerHTML;
 }
+/* ------------------------------------------------------------------------- *
+ * Sortable table headers (Sort_Helper)                                        *
+ *                                                                             *
+ * Reusable click-to-sort helper attached to dashboard tables. This is a       *
+ * UI-only feature: it reorders already-rendered <tbody> rows in place and     *
+ * issues no data requests.                                                    *
+ *                                                                             *
+ * NOTE: The functions below are STUBS added in task 1.1. Real logic is filled *
+ * in by later tasks (2.x - 6.x). They are intentionally minimal placeholders. *
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Attach click-to-sort behavior to a rendered table.
+ *
+ * @param {HTMLTableElement|null} table - the table produced by a render function.
+ *        If null or without a <thead>/<tbody>, the call is a no-op.
+ * @param {Object} [options]
+ * @param {number[]} [options.excludeColumns] - additional zero-based column indices to
+ *        exclude from sorting (beyond the auto-detected trailing Actions column).
+ * @param {string[]} [options.actionHeaderLabels] - header texts (case-insensitive) that
+ *        mark a non-sortable Actions column. Defaults to ['actions'] plus the localized
+ *        "actions" label used by the templates.
+ * @returns {void}
+ */
+function makeSortable(table, options) {
+    // Guard/no-op when the table, its <thead>, or its <tbody> rows are absent
+    // (Requirement 6.1 error handling; design "No table / empty table").
+    if (!table || !table.querySelector) return;
+    if (!table.querySelector('thead')) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody || !tbody.querySelector('tr')) return;
+
+    // Store options on the element so applySort/updateIndicators resolve headers
+    // with the same exclusion rules via table._sortOptions.
+    const opts = options || {};
+    table._sortOptions = opts;
+
+    // Per-table sort state: null column and 'asc' until the first click. Storing
+    // it on the element means re-rendering a panel naturally resets the state.
+    table._sortState = { colIndex: null, dir: 'asc' };
+
+    // Resolve per-column metadata (which headers are sortable vs excluded).
+    const headers = resolveHeaders(table, opts);
+
+    headers.forEach(function (h) {
+        // Excluded headers (trailing Actions column, options.excludeColumns) get
+        // no listener, no pointer cursor, and no indicator span (Req 1.4, 4.2).
+        if (!h.sortable) return;
+
+        const th = h.th;
+        const colIndex = h.index;
+
+        // Wrap the label once in a dedicated <span class="sort-indicator"> so the
+        // arrow lives in its own span; the label text is kept intact and the empty
+        // indicator span is appended after it (design "Implementation detail").
+        if (!th.querySelector('span.sort-indicator')) {
+            const span = th.ownerDocument.createElement('span');
+            span.className = 'sort-indicator';
+            th.appendChild(span);
+        }
+
+        // Visual affordance and machine-readable marker for sortable headers.
+        th.style.cursor = 'pointer';
+        th.setAttribute('data-sortable', 'true');
+
+        // Click sorts by this column (Req 1.1); no sort/indicator at attach time
+        // preserves the initial order (Req 4.1, 4.2).
+        th.addEventListener('click', function () {
+            applySort(table, colIndex);
+        });
+    });
+}
+
+/**
+ * Locate the table's <th> cells and decide which are sortable, marking the
+ * trailing Actions column and any options.excludeColumns indices as excluded.
+ *
+ * @param {HTMLTableElement} table
+ * @param {Object} [options]
+ * @param {number[]} [options.excludeColumns] - additional zero-based indices to exclude.
+ * @param {string[]} [options.actionHeaderLabels] - header texts (case-insensitive) that
+ *        mark a non-sortable trailing Actions column. Defaults to ['actions'].
+ * @returns {Array<{index:number, sortable:boolean, excluded:boolean, th:HTMLTableCellElement}>}
+ */
+function resolveHeaders(table, options) {
+    const opts = options || {};
+
+    // Header texts (lower-cased) that mark a non-sortable trailing Actions column.
+    // Defaults to ['actions'] plus any localized label the templates render for
+    // get_text('actions'); callers may override/extend via options.actionHeaderLabels.
+    const actionLabels = (opts.actionHeaderLabels || ['actions']).map(function (label) {
+        return String(label).trim().toLowerCase();
+    });
+
+    // Additional zero-based column indices to exclude from sorting.
+    const excludeSet = {};
+    (opts.excludeColumns || []).forEach(function (idx) {
+        excludeSet[idx] = true;
+    });
+
+    // Locate the <th> cells. Prefer the header row so stray body <th> cells are ignored.
+    let ths = [];
+    if (table && table.querySelectorAll) {
+        const headRow = table.querySelector('thead tr');
+        if (headRow) {
+            ths = Array.prototype.slice.call(headRow.querySelectorAll('th'));
+        } else {
+            ths = Array.prototype.slice.call(table.querySelectorAll('th'));
+        }
+    }
+
+    // Determine the trailing Actions column: the last <th> whose lower-cased text
+    // matches one of the action labels. Only the trailing header qualifies.
+    let actionsIndex = -1;
+    if (ths.length > 0) {
+        const lastIndex = ths.length - 1;
+        const lastText = (ths[lastIndex].textContent || '').trim().toLowerCase();
+        if (actionLabels.indexOf(lastText) !== -1) {
+            actionsIndex = lastIndex;
+        }
+    }
+
+    return ths.map(function (th, index) {
+        const excluded = (index === actionsIndex) || (excludeSet[index] === true);
+        return {
+            index: index,
+            th: th,
+            sortable: !excluded,
+            excluded: excluded
+        };
+    });
+}
+
+/**
+ * Read the displayed (flattened) text of a body cell.
+ *
+ * @param {HTMLTableRowElement} row
+ * @param {number} colIndex
+ * @returns {string}
+ */
+function getCellText(row, colIndex) {
+    const cell = row && row.children ? row.children[colIndex] : null;
+    if (!cell) return '';
+    // textContent flattens nested markup: <span class="status-active">Active</span> -> "Active",
+    // <a>...url...</a> -> the url text, <select><option selected>X</option></select> -> "X".
+    return (cell.textContent || '').trim();
+}
+
+/**
+ * Infer the column type from displayed cell text.
+ *
+ * @param {string[]} values
+ * @returns {'numeric'|'date'|'text'}
+ */
+function detectColumnType(values) {
+    // Ignore empty/placeholder values so a few blanks don't force a column to text.
+    const meaningful = (values || []).filter(function (v) {
+        return v !== '' && v !== '-' && v !== 'N/A';
+    });
+    if (meaningful.length === 0) return 'text';
+    // Check numeric before date so plain numbers (e.g. "2024") aren't misread as dates.
+    if (meaningful.every(isNumericText)) return 'numeric';
+    if (meaningful.every(isDateText)) return 'date';
+    return 'text';
+}
+
+/**
+ * Return true when the text represents a numeric value.
+ *
+ * @param {string} v
+ * @returns {boolean}
+ */
+function isNumericText(v) {
+    if (typeof v !== 'string') return false;
+    // Strip currency/thousands-separators/whitespace, then a trailing duration suffix (m/s/h).
+    const stripped = v.replace(/[$,\s]/g, '').replace(/(m|s|h)$/i, '');
+    return stripped !== '' && !isNaN(Number(stripped));
+}
+
+/**
+ * Parse a numeric value from displayed text.
+ *
+ * @param {string} v
+ * @returns {number}
+ */
+function toNumber(v) {
+    return parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+}
+
+/**
+ * Return true when the text represents a date value.
+ *
+ * @param {string} v
+ * @returns {boolean}
+ */
+function isDateText(v) {
+    // A purely numeric value (e.g. "2024") stays numeric, not date.
+    return !isNumericText(v) && !Number.isNaN(Date.parse(v));
+}
+
+/**
+ * Parse a date (epoch ms) from displayed text.
+ *
+ * @param {string} v
+ * @returns {number}
+ */
+function toDate(v) {
+    return Date.parse(v);
+}
+
+/**
+ * Build a type-aware comparator for the given direction.
+ *
+ * @param {'numeric'|'date'|'text'} type
+ * @param {'asc'|'desc'} dir
+ * @returns {(a:string, b:string) => number}
+ */
+function buildComparator(type, dir) {
+    const sign = (dir === 'asc') ? 1 : -1;
+
+    // Empty/placeholder keys sort to the end regardless of direction (treated as
+    // the largest value) so blanks don't scatter through the ordering.
+    function isBlank(v) {
+        return v === '' || v === '-' || v === 'N/A';
+    }
+
+    return function (a, b) {
+        const aBlank = isBlank(a);
+        const bBlank = isBlank(b);
+        if (aBlank && bBlank) return 0;
+        if (aBlank) return 1;   // a sorts after b, ignoring direction
+        if (bBlank) return -1;  // b sorts after a, ignoring direction
+
+        switch (type) {
+            case 'numeric':
+                return sign * (toNumber(a) - toNumber(b));              // Req 2.1
+            case 'date':
+                return sign * (toDate(a) - toDate(b));                  // Req 2.2
+            default:
+                return sign * a.localeCompare(b, undefined,            // Req 2.3
+                    { numeric: false, sensitivity: 'base' });
+        }
+    };
+}
+
+/**
+ * Reorder the table's <tbody> rows by the given column, toggling direction and
+ * updating indicators.
+ *
+ * @param {HTMLTableElement} table
+ * @param {number} colIndex
+ * @returns {void}
+ */
+function applySort(table, colIndex) {
+    if (!table) return;
+
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+    // Read/guard per-table sort state (initialized by makeSortable).
+    const state = table._sortState || (table._sortState = { colIndex: null, dir: 'asc' });
+
+    // Same column toggles direction; a new column starts ascending (Req 1.2, 1.3).
+    const dir = (colIndex === state.colIndex)
+        ? (state.dir === 'asc' ? 'desc' : 'asc')
+        : 'asc';
+
+    // Collect the body rows (direct children only).
+    const rows = Array.from(tbody.querySelectorAll(':scope > tr'));
+
+    // Read displayed cell text and detect the column type from those values.
+    const values = rows.map(function (r) { return getCellText(r, colIndex); });
+    const type = detectColumnType(values);
+    const cmp = buildComparator(type, dir);
+
+    // Decorate-sort-undecorate: keep the original index as a stable tiebreaker so
+    // equal keys retain their relative order and a plain toggle reverses cleanly.
+    const decorated = rows.map(function (row, i) {
+        return { row: row, key: values[i], index: i };
+    });
+    decorated.sort(function (a, b) {
+        const c = cmp(a.key, b.key);
+        if (c !== 0) return c;
+        return a.index - b.index;
+    });
+
+    // Reorder in place (Req 1.1).
+    decorated.forEach(function (d) { tbody.appendChild(d.row); });
+
+    // Persist state and update the indicator.
+    state.colIndex = colIndex;
+    state.dir = dir;
+    updateIndicators(table, colIndex, dir);
+}
+
+/**
+ * Clear indicators on all sortable headers and render the ▲/▼ indicator on the
+ * active header.
+ *
+ * @param {HTMLTableElement} table
+ * @param {number} activeIndex
+ * @param {'asc'|'desc'} dir
+ * @returns {void}
+ */
+function updateIndicators(table, activeIndex, dir) {
+    if (!table) return;
+
+    // Resolve headers so only sortable columns can carry an indicator; the
+    // trailing Actions column (and any excluded columns) never get a glyph.
+    const headers = resolveHeaders(table, table._sortOptions);
+
+    // Locate (or lazily create) the dedicated indicator span for a header.
+    // makeSortable (task 6.1) wraps each sortable label in a
+    // <span class="sort-indicator"> at attach time; when that hasn't happened
+    // yet we create/append one on demand so this function is self-sufficient.
+    function getIndicatorSpan(th, create) {
+        let span = th.querySelector('span.sort-indicator');
+        if (!span && create) {
+            span = th.ownerDocument.createElement('span');
+            span.className = 'sort-indicator';
+            th.appendChild(span);
+        }
+        return span;
+    }
+
+    // Clear the glyph on every sortable header's indicator span (Req 3.3).
+    headers.forEach(function (h) {
+        if (!h.sortable) return;
+        const span = getIndicatorSpan(h.th, false);
+        if (span) span.textContent = '';
+    });
+
+    // Write ▲ (asc) / ▼ (desc) into the active header's indicator span so that
+    // exactly one header shows an indicator (Req 3.1, 3.2).
+    const active = headers[activeIndex];
+    if (active && active.sortable) {
+        const span = getIndicatorSpan(active.th, true);
+        span.textContent = (dir === 'asc') ? ' ▲' : ' ▼';
+    }
+}
+
+/*
+ * Export the Sort_Helper functions for the Node/jsdom test harness. In the
+ * browser `module` is undefined, so this block is skipped and the functions
+ * remain plain globals loaded via <script>.
+ */
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        makeSortable,
+        resolveHeaders,
+        getCellText,
+        detectColumnType,
+        isNumericText,
+        toNumber,
+        isDateText,
+        toDate,
+        buildComparator,
+        applySort,
+        updateIndicators,
+    };
+}
