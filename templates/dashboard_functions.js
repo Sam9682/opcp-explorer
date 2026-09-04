@@ -891,6 +891,116 @@ function updateIndicators(table, activeIndex, dir) {
     }
 }
 
+/* ------------------------------------------------------------------------- *
+ * AppCard state -> background color resolver (Running_State highlight)        *
+ *                                                                             *
+ * Mirrors the state derivation and background-color assignment used by the    *
+ * inline status-styling block in templates/dashboard.html (~lines 2661-2691   *
+ * for derivation, ~2785-2834 for styling). Extracted here so the state->color *
+ * mapping can be exercised by the Node/jsdom test harness without a full DOM. *
+ *                                                                             *
+ * Color mapping:                                                              *
+ *   Running     -> '#d4edda' (Soft_Green)                                     *
+ *   NotRunning  -> '#f8d7da' (Soft_Red)                                       *
+ *   Other       -> unchanged (resolver returns '' as the "no highlight" value)*
+ * ------------------------------------------------------------------------- */
+
+/** Soft_Green background applied to Running_State AppCards. */
+const RUNNING_BACKGROUND_COLOR = '#d4edda';
+/** Soft_Red background applied to Not_Running_State AppCards. */
+const NOT_RUNNING_BACKGROUND_COLOR = '#f8d7da';
+
+/**
+ * Resolve an AppCard's status from its raw `logs` text, mirroring the
+ * derivation performed inline in templates/dashboard.html.
+ *
+ * The dashboard first checks for the cloned-but-not-compliant and not-cloned
+ * conditions via case-insensitive log substrings, then (when the app is cloned
+ * and compliant) parses the JSON emitted after a `STDOUT:` marker to read
+ * `docker_compose_ps`, falling back to raw `IS_RUNNING` / `IS_NOT_RUNNING`
+ * substring matching when the JSON cannot be parsed.
+ *
+ * @param {string} logs - Raw status/log text for the application.
+ * @returns {('Running'|'NotRunning'|'Other')} The resolved status.
+ */
+function resolveAppCardStatus(logs) {
+    const text = (logs === null || logs === undefined) ? '' : String(logs);
+    const lower = text.toLowerCase();
+
+    // Cloned-but-not-compliant and not-cloned are "Other" states: they never
+    // receive the running / not-running highlight colors.
+    const isClonedButNotCompliant = lower.includes('deployapp.sh not found');
+    if (isClonedButNotCompliant) {
+        return 'Other';
+    }
+
+    const isNotCloned = lower.includes('application not deployed') ||
+                        lower.includes('clone it first');
+    if (isNotCloned) {
+        return 'Other';
+    }
+
+    // Cloned and compliant: determine running state. Prefer the JSON
+    // `docker_compose_ps` field; fall back to raw substring matching.
+    let isRunning = false;
+    let isNotRunning = false;
+    try {
+        const lines = text.split('\n');
+        const stdoutIndex = lines.findIndex(function (line) {
+            return line.includes('STDOUT:');
+        });
+        const jsonLines = stdoutIndex >= 0 ? lines.slice(stdoutIndex + 1) : lines;
+        const jsonString = jsonLines.join('\n').trim();
+
+        const statusData = JSON.parse(jsonString);
+        if (statusData && statusData.docker_compose_ps) {
+            isRunning = statusData.docker_compose_ps === 'IS_RUNNING';
+            isNotRunning = statusData.docker_compose_ps === 'IS_NOT_RUNNING';
+        }
+    } catch (e) {
+        // Fallback to old text parsing when JSON is absent/malformed.
+        isRunning = text.includes('IS_RUNNING');
+        isNotRunning = text.includes('IS_NOT_RUNNING');
+    }
+
+    if (isRunning) {
+        return 'Running';
+    }
+    if (isNotRunning) {
+        return 'NotRunning';
+    }
+    return 'Other';
+}
+
+/**
+ * Map a resolved AppCard status to the background color the dashboard applies.
+ *
+ * @param {('Running'|'NotRunning'|'Other')} status - Resolved status.
+ * @returns {string} '#d4edda' for Running, '#f8d7da' for NotRunning, '' otherwise.
+ */
+function statusToBackgroundColor(status) {
+    if (status === 'Running') {
+        return RUNNING_BACKGROUND_COLOR;
+    }
+    if (status === 'NotRunning') {
+        return NOT_RUNNING_BACKGROUND_COLOR;
+    }
+    // Other_State: no running/not-running highlight; leave background unchanged.
+    return '';
+}
+
+/**
+ * Resolve an AppCard's status from raw logs and return the background color to
+ * apply. Convenience wrapper combining resolveAppCardStatus and
+ * statusToBackgroundColor.
+ *
+ * @param {string} logs - Raw status/log text for the application.
+ * @returns {string} '#d4edda' (Running), '#f8d7da' (NotRunning), or '' (Other).
+ */
+function resolveAppCardBackgroundColor(logs) {
+    return statusToBackgroundColor(resolveAppCardStatus(logs));
+}
+
 /*
  * Export the Sort_Helper functions for the Node/jsdom test harness. In the
  * browser `module` is undefined, so this block is skipped and the functions
@@ -909,5 +1019,11 @@ if (typeof module !== 'undefined' && module.exports) {
         buildComparator,
         applySort,
         updateIndicators,
+        // AppCard state -> color resolver (Running_State highlight)
+        RUNNING_BACKGROUND_COLOR,
+        NOT_RUNNING_BACKGROUND_COLOR,
+        resolveAppCardStatus,
+        statusToBackgroundColor,
+        resolveAppCardBackgroundColor,
     };
 }
