@@ -829,7 +829,7 @@ stop_services() {
     remove_backup_cron
 
     # Create database backup before stopping services
-    backup_database
+    backup_database || echo -e "  ⚠️ Pre-stop database backup failed; continuing to stop services anyway"
 
     # Create logs backup before stopping services
     backup_logs
