@@ -426,8 +426,11 @@ backup_logs() {
 
     if [ -d "logs" ] && [ "$(ls -A logs 2>/dev/null)" ]; then
         echo "  📄 Synchronizing logs to S3..."
-        aws s3 sync ./logs s3://${S3_BUCKET_NAME}/${NAME_OF_APPLICATION}/logs --profile OVH-SWAUTOMORPH
-        echo -e "  $OK Logs backup completed"
+        if aws s3 sync ./logs s3://${S3_BUCKET_NAME}/${NAME_OF_APPLICATION}/logs --profile OVH-SWAUTOMORPH; then
+            echo -e "  $OK Logs backup completed"
+        else
+            echo -e "  ⚠️ Logs S3 sync failed or not configured - continuing"
+        fi
     else
         echo -e "  $WARN No logs directory or logs found - skipping backup"
     fi
@@ -831,8 +834,9 @@ stop_services() {
     # Create database backup before stopping services
     backup_database || echo -e "  ⚠️ Pre-stop database backup failed; continuing to stop services anyway"
 
-    # Create logs backup before stopping services
-    backup_logs
+    # Create logs backup before stopping services (best-effort:
+    # a logs-backup failure must NOT prevent services from being stopped)
+    backup_logs || echo -e "  ⚠️ Pre-stop logs backup failed; continuing to stop services anyway"
 
     CLEANUP_NEEDED=false
 

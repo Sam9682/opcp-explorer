@@ -14,14 +14,17 @@
 # that is what pins down the behaviour the fix must preserve. After the fix
 # (task 3) they must still pass, proving no regression.
 #
-# Observed baseline on UNFIXED code (succeeding backup, FAIL_MODE=none):
-#   MODE=locally -> seq=backup,flask,nginx,gitea      (backup first, then stop)
-#   MODE=docker  -> seq=backup,docker
-#   MODE=default -> seq=backup,flask,nginx,gitea,docker
+# Observed baseline on UNFIXED code (succeeding backup, FAIL_MODE=none). The
+# "logs" marker is the pre-stop logs backup step, which runs after the DB backup
+# and before the mode-specific stop commands (same ordering on unfixed & fixed):
+#   MODE=locally -> seq=backup,logs,flask,nginx,gitea   (backup, logs, then stop)
+#   MODE=docker  -> seq=backup,logs,docker
+#   MODE=default -> seq=backup,logs,flask,nginx,gitea,docker
 #   * no warning is logged on the success path (warning=0)
 #   * the sequence is invariant to --keep-gitea-running (KEEP_GITEA true|false)
 #   backup_database standalone exit code:
 #   FAIL_MODE=none -> 0 ; FAIL_MODE=pg_isready -> 1 ; FAIL_MODE=pg_dump -> 1
+#   backup_logs success path -> exit 0 + "Logs backup completed"; no-logs -> skip, exit 0
 #
 # EXPECTED OUTCOME ON UNFIXED CODE: all tests PASS.
 
@@ -38,9 +41,9 @@ HARNESS="$SCRIPT_DIR/stop_services_harness.sh"
 # Requirement 3.2 mode-specific commands).
 expected_seq_for_mode() {
     case "$1" in
-        locally) echo "backup,flask,nginx,gitea" ;;
-        docker)  echo "backup,docker" ;;
-        default) echo "backup,flask,nginx,gitea,docker" ;;
+        locally) echo "backup,logs,flask,nginx,gitea" ;;
+        docker)  echo "backup,logs,docker" ;;
+        default) echo "backup,logs,flask,nginx,gitea,docker" ;;
     esac
 }
 
@@ -167,6 +170,68 @@ for c in "${CASES[@]}"; do
         fail "$label" "expected exit=$want_code but got exit=$got_code"
     fi
 done
+
+# ---------------------------------------------------------------------------
+# Part C - Successful logs-backup path preserved (Requirement 3.5).
+#
+# The fix guards the bare `aws s3 sync ./logs` inside backup_logs with an
+# if/else. The SUCCESS path must be unchanged: with a non-empty ./logs dir and a
+# succeeding sync, backup_logs still logs "Logs backup completed" and returns 0;
+# with NO ./logs dir it still skips cleanly and returns 0. We extract and invoke
+# the REAL backup_logs directly (external `aws` stubbed to succeed).
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- Property 2C: successful logs-backup path preserved (3.5) ---"
+
+run_backup_logs() {
+    # Runs the REAL backup_logs with `set -e` active (as in the real script).
+    # $1 = have_logs (yes|no). Echoes: "<exit_code>|<output>".
+    local have_logs="$1"
+    local sandbox; sandbox="$(mktemp -d)"
+    extract_func "backup_logs" "$TARGET_SCRIPT" > "$sandbox/fn.sh"
+    local out
+    out=$(HAVE_LOGS="$have_logs" SANDBOX="$sandbox" bash <<'CHILD'
+set -e
+cd "$SANDBOX"
+aws() { return 0; }        # logs S3 sync succeeds
+NAME_OF_APPLICATION="opcp-explorer"; S3_BUCKET_NAME="test-bucket"
+OK="OK"; WARN="WARN"; ERROR="ERR"
+if [ "$HAVE_LOGS" = "yes" ]; then
+    mkdir -p ./logs
+    echo "sample" > ./logs/app.log
+fi
+# shellcheck disable=SC1090
+source "$SANDBOX/fn.sh"
+backup_logs 2>&1
+echo "EXITCODE=$?"
+CHILD
+)
+    rm -rf "$sandbox"
+    echo "$out"
+}
+
+# C1: with a non-empty logs dir, the success path prints "Logs backup completed"
+#     and returns 0 (unchanged behaviour).
+total=$((total + 1))
+res_yes="$(run_backup_logs yes)"
+code_yes="$(sed -n 's/^EXITCODE=\([0-9]*\)$/\1/p' <<<"$res_yes")"
+if [ "$code_yes" = "0" ] && grep -q "Logs backup completed" <<<"$res_yes"; then
+    pass "backup_logs success path (logs present) -> exit=0, 'Logs backup completed'"
+else
+    fail "backup_logs success path (logs present)" \
+         "expected exit=0 and 'Logs backup completed' (got exit=$code_yes; output: $res_yes)"
+fi
+
+# C2: with no logs dir, backup_logs skips cleanly and returns 0 (unchanged).
+total=$((total + 1))
+res_no="$(run_backup_logs no)"
+code_no="$(sed -n 's/^EXITCODE=\([0-9]*\)$/\1/p' <<<"$res_no")"
+if [ "$code_no" = "0" ] && grep -qi "skipping backup" <<<"$res_no"; then
+    pass "backup_logs no-logs skip path -> exit=0, skipped cleanly"
+else
+    fail "backup_logs no-logs skip path" \
+         "expected exit=0 and a skip message (got exit=$code_no; output: $res_no)"
+fi
 
 echo ""
 echo "=============================================================="
