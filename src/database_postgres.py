@@ -23,7 +23,7 @@ def load_deploy_config():
     RANGE_RESERVED = 100
     RANGE_START_CONTROLPLAN = 80
     RANGE_RESERVED_CONTROLPLAN = 0
-    RANGE_PORTS_PER_APPLICATION = 4
+    RANGE_PORTS_PER_APPLICATION = 12
     DOMAIN = "softfluid.fr"
 
     if os.path.exists(config_path):
@@ -64,13 +64,57 @@ def load_deploy_config():
 NAME_OF_APPLICATION, APPLICATION_IDENTITY_NUMBER, RANGE_START, RANGE_RESERVED, RANGE_START_CONTROLPLAN, RANGE_RESERVED_CONTROLPLAN, RANGE_PORTS_PER_APPLICATION, DOMAIN = load_deploy_config()
 
 def calculate_app_ports(user_id, app_id):
-    """Calculate HTTP and HTTPS ports using the same logic as deployControlPlan.sh"""
+    """Calculate 12 consecutive ports (6 HTTP + 6 HTTPS) per application,
+    using the same logic as deployControlPlan.sh calculate_ports().
+
+    Returns a tuple of 12 ports in the order:
+        HTTP_PORT, HTTPS_PORT,
+        HTTP_PORT2, HTTPS_PORT2,
+        HTTP_PORT3, HTTPS_PORT3,
+        HTTP_PORT4, HTTPS_PORT4,
+        HTTP_PORT5, HTTPS_PORT5,
+        HTTP_PORT6, HTTPS_PORT6
+    """
     PORT_RANGE_BEGIN = RANGE_START + user_id * RANGE_RESERVED
     HTTP_PORT = PORT_RANGE_BEGIN + app_id * RANGE_PORTS_PER_APPLICATION
     HTTPS_PORT = HTTP_PORT + 1
     HTTP_PORT2 = HTTPS_PORT + 1
     HTTPS_PORT2 = HTTP_PORT2 + 1
-    return HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2
+    HTTP_PORT3 = HTTPS_PORT2 + 1
+    HTTPS_PORT3 = HTTP_PORT3 + 1
+    HTTP_PORT4 = HTTPS_PORT3 + 1
+    HTTPS_PORT4 = HTTP_PORT4 + 1
+    HTTP_PORT5 = HTTPS_PORT4 + 1
+    HTTPS_PORT5 = HTTP_PORT5 + 1
+    HTTP_PORT6 = HTTPS_PORT5 + 1
+    HTTPS_PORT6 = HTTP_PORT6 + 1
+    return (
+        HTTP_PORT, HTTPS_PORT,
+        HTTP_PORT2, HTTPS_PORT2,
+        HTTP_PORT3, HTTPS_PORT3,
+        HTTP_PORT4, HTTPS_PORT4,
+        HTTP_PORT5, HTTPS_PORT5,
+        HTTP_PORT6, HTTPS_PORT6,
+    )
+
+
+# Ordered list of the 12 per-application port columns, matching the return
+# order of calculate_app_ports(). Used to build INSERT/UPDATE statements so
+# the column list, placeholders and value tuple always stay in sync.
+APP_PORT_COLUMNS = (
+    'http_port', 'https_port',
+    'http_port2', 'https_port2',
+    'http_port3', 'https_port3',
+    'http_port4', 'https_port4',
+    'http_port5', 'https_port5',
+    'http_port6', 'https_port6',
+)
+# "http_port, https_port, ..." for use in INSERT column lists.
+APP_PORT_COLUMNS_SQL = ', '.join(APP_PORT_COLUMNS)
+# "%s, %s, ..." (12 placeholders) for use in INSERT VALUES.
+APP_PORT_PLACEHOLDERS_SQL = ', '.join(['%s'] * len(APP_PORT_COLUMNS))
+# "http_port = %s, https_port = %s, ..." for use in UPDATE SET clauses.
+APP_PORT_UPDATE_SQL = ', '.join(f'{col} = %s' for col in APP_PORT_COLUMNS)
 
 class PostgreSQLManager:
     """Thread-safe PostgreSQL database manager with connection pooling"""
@@ -448,13 +492,13 @@ def init_db():
                     uid = user_row[0]
                     cursor.execute('SELECT id FROM user_applications WHERE user_id = %s AND application_id = %s', (uid, serverless_app_id))
                     if not cursor.fetchone():
-                        HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(uid, serverless_app_id)
-                        url = f'https://www.{DOMAIN}:{HTTPS_PORT}'
-                        cursor.execute('''
-                            INSERT INTO user_applications (user_id, application_id, url, http_port, https_port, http_port2, https_port2)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        app_ports = calculate_app_ports(uid, serverless_app_id)
+                        url = f'https://www.{DOMAIN}:{app_ports[1]}'
+                        cursor.execute(f'''
+                            INSERT INTO user_applications (user_id, application_id, url, {APP_PORT_COLUMNS_SQL})
+                            VALUES (%s, %s, %s, {APP_PORT_PLACEHOLDERS_SQL})
                             ON CONFLICT (user_id, application_id) DO NOTHING
-                        ''', (uid, serverless_app_id, url, HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2))
+                        ''', (uid, serverless_app_id, url, *app_ports))
 
                 # Ensure a deployment record exists for admin so the endpoint shows up
                 cursor.execute("SELECT id FROM users WHERE username = %s", ('admin',))
@@ -543,13 +587,13 @@ def init_db():
                 for app in apps:
                     app_id, app_name = app[0], app[1]
                     # Calculate URL using the same logic as deployControlPlan.sh
-                    HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(admin_id, app_id)
+                    app_ports = calculate_app_ports(admin_id, app_id)
 
-                    url = f'https://www.{DOMAIN}:{HTTPS_PORT}'
-                    cursor.execute('''
-                        INSERT INTO user_applications (user_id, application_id, url, http_port, https_port, http_port2, https_port2)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ''', (admin_id, app_id, url, HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2))
+                    url = f'https://www.{DOMAIN}:{app_ports[1]}'
+                    cursor.execute(f'''
+                        INSERT INTO user_applications (user_id, application_id, url, {APP_PORT_COLUMNS_SQL})
+                        VALUES (%s, %s, %s, {APP_PORT_PLACEHOLDERS_SQL})
+                    ''', (admin_id, app_id, url, *app_ports))
 
                 # Ensure costs exist for all applications
                 cursor.execute('SELECT id FROM applications')
@@ -572,11 +616,11 @@ def init_db():
             records_to_update = cursor.fetchall()
             for record in records_to_update:
                 record_id, user_id, app_id = record
-                HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(user_id, app_id)
-                cursor.execute('''
-                    UPDATE user_applications SET http_port = %s, https_port = %s, http_port2 = %s, https_port2 = %s
+                app_ports = calculate_app_ports(user_id, app_id)
+                cursor.execute(f'''
+                    UPDATE user_applications SET {APP_PORT_UPDATE_SQL}
                     WHERE id = %s
-                ''', (HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2, record_id))
+                ''', (*app_ports, record_id))
 
             # Insert default configuration parameters if none exist
             cursor.execute('SELECT COUNT(*) FROM configuration')
@@ -603,15 +647,15 @@ def assign_default_apps_to_user(user_id):
             for app in apps:
                 app_id, app_name = app[0], app[1]
                 # Calculate URL using the same logic as deployControlPlan.sh
-                HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(user_id, app_id)
+                app_ports = calculate_app_ports(user_id, app_id)
 
                 # Compose URL
-                url = f'https://www.{DOMAIN}:{HTTPS_PORT}'
-                cursor.execute('''
-                    INSERT INTO user_applications (user_id, application_id, url, http_port, https_port, http_port2, https_port2)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                url = f'https://www.{DOMAIN}:{app_ports[1]}'
+                cursor.execute(f'''
+                    INSERT INTO user_applications (user_id, application_id, url, {APP_PORT_COLUMNS_SQL})
+                    VALUES (%s, %s, %s, {APP_PORT_PLACEHOLDERS_SQL})
                     ON CONFLICT (user_id, application_id) DO NOTHING
-                ''', (user_id, app_id, url, HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2))
+                ''', (user_id, app_id, url, *app_ports))
 
             conn.commit()
 
@@ -628,14 +672,14 @@ def assign_app_to_all_users(app_id, app_name):
             for user_id in user_ids:
                 uid = user_id[0]
                 # Calculate URL using the same logic as deployControlPlan.sh
-                HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(uid, app_id)
+                app_ports = calculate_app_ports(uid, app_id)
 
-                url = f'https://www.{DOMAIN}:{HTTPS_PORT}'
-                cursor.execute('''
-                    INSERT INTO user_applications (user_id, application_id, url, http_port, https_port, http_port2, https_port2)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                url = f'https://www.{DOMAIN}:{app_ports[1]}'
+                cursor.execute(f'''
+                    INSERT INTO user_applications (user_id, application_id, url, {APP_PORT_COLUMNS_SQL})
+                    VALUES (%s, %s, %s, {APP_PORT_PLACEHOLDERS_SQL})
                     ON CONFLICT (user_id, application_id) DO NOTHING
-                ''', (uid, app_id, url, HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2))
+                ''', (uid, app_id, url, *app_ports))
 
             conn.commit()
 

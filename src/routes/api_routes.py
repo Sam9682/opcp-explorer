@@ -543,8 +543,8 @@ def api_user_applications(user_id):
             
             try:
                 # Calculate ports for the user and application
-                from ..database_postgres import calculate_app_ports
-                HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(user_id, app_id)
+                from ..database_postgres import calculate_app_ports, APP_PORT_COLUMNS_SQL, APP_PORT_PLACEHOLDERS_SQL
+                app_ports = calculate_app_ports(user_id, app_id)
                 
                 # Get application name for URL generation
                 app_result = db_manager.execute_query(
@@ -555,11 +555,11 @@ def api_user_applications(user_id):
                     return jsonify({'error': 'Application not found'}), 404
                 
                 app_name = app_result[0]
-                url = f'https://{DOMAIN}:{HTTPS_PORT}'
+                url = f'https://{DOMAIN}:{app_ports[1]}'
                 
                 db_manager.execute_query(
-                    'INSERT INTO user_applications (user_id, application_id, url, http_port, https_port, http_port2, https_port2) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-                    (user_id, app_id, url, HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2)
+                    f'INSERT INTO user_applications (user_id, application_id, url, {APP_PORT_COLUMNS_SQL}) VALUES (%s, %s, %s, {APP_PORT_PLACEHOLDERS_SQL})',
+                    (user_id, app_id, url, *app_ports)
                 )
                 
                 # Update nginx configuration with dynamic location

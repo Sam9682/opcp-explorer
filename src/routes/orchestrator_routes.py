@@ -552,7 +552,7 @@ def multi_user_deploy():
         server_ip = server_result[1]
         
         DOMAIN = config_postgres.DOMAIN
-        from ..database_postgres import calculate_app_ports
+        from ..database_postgres import calculate_app_ports, APP_PORT_COLUMNS_SQL, APP_PORT_PLACEHOLDERS_SQL
         from werkzeug.security import generate_password_hash
         
         created_users = []
@@ -604,14 +604,14 @@ def multi_user_deploy():
                 )
                 
                 if not existing_assignment:
-                    HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2 = calculate_app_ports(replica_user_id, application_id)
+                    app_ports = calculate_app_ports(replica_user_id, application_id)
                     url = f"https://www.{DOMAIN}/{replica_username}/{app_name}"
                     
                     db_manager.execute_query(
-                        '''INSERT INTO user_applications (user_id, application_id, url, http_port, https_port, http_port2, https_port2)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        f'''INSERT INTO user_applications (user_id, application_id, url, {APP_PORT_COLUMNS_SQL})
+                           VALUES (%s, %s, %s, {APP_PORT_PLACEHOLDERS_SQL})
                            ON CONFLICT (user_id, application_id) DO NOTHING''',
-                        (replica_user_id, application_id, url, HTTP_PORT, HTTPS_PORT, HTTP_PORT2, HTTPS_PORT2)
+                        (replica_user_id, application_id, url, *app_ports)
                     )
                     logger.info(f"[MULTI-USER DEPLOY] Assigned app '{app_name}' to user '{replica_username}'")
                 else:

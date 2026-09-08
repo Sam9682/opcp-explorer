@@ -156,7 +156,7 @@ The platform provides **two specialized AI agents** with advanced features:
 -- 🏢 Core entities with comprehensive billing and multi-server support
 👥 Users: id, username, email, password_hash, first_name, last_name, suspended, created_at
 📱 Applications: id, name, description, git_url, git_repo_size, docker_*_duration, created_at
-🔗 User_Applications: id, user_id, application_id, url, http_port, https_port, http_port2, https_port2, created_at
+🔗 User_Applications: id, user_id, application_id, url, http_port, https_port, http_port2, https_port2, http_port3, https_port3, http_port4, https_port4, http_port5, https_port5, http_port6, https_port6, others_port, created_at
 🚀 Deployments: id, user_id, application_name, status, deployment_path, git_url, server_id, created_at, updated_at
 🖥️ Servers: id, SERVER_IP, SERVER_NAME, SERVER_CAPACITY_USER_MAX, SERVER_CAPACITY_APPLI_MAX, SERVER_STATUS, SERVER_TYPE, shared_gpu_enabled, created_at
 🔑 Auth_Tokens: id, user_id, token_hash, expires_at, created_at
@@ -374,7 +374,7 @@ La plateforme fournit **deux agents IA spécialisés** avec fonctionnalités ava
 -- 🏢 Entités principales avec facturation complète et support multi-serveurs
 👥 Users: id, username, email, password_hash, first_name, last_name, suspended, created_at
 📱 Applications: id, name, description, git_url, git_repo_size, docker_*_duration, created_at
-🔗 User_Applications: id, user_id, application_id, url, http_port, https_port, http_port2, https_port2, created_at
+🔗 User_Applications: id, user_id, application_id, url, http_port, https_port, http_port2, https_port2, http_port3, https_port3, http_port4, https_port4, http_port5, https_port5, http_port6, https_port6, others_port, created_at
 🚀 Deployments: id, user_id, application_name, status, deployment_path, git_url, server_id, created_at, updated_at
 🖥️ Servers: id, SERVER_IP, SERVER_NAME, SERVER_CAPACITY_USER_MAX, SERVER_CAPACITY_APPLI_MAX, SERVER_STATUS, SERVER_TYPE, shared_gpu_enabled, created_at
 🔑 Auth_Tokens: id, user_id, token_hash, expires_at, created_at

@@ -190,10 +190,20 @@ get_server_ip() {
 
 # Calculate ports (convert alphanumeric USER_ID to numeric for port calculation)
 calculate_ports() {
+    # 12 consecutive ports per application (6 HTTP + 6 HTTPS), allocated as
+    # alternating HTTP/HTTPS pairs starting from RANGE_START_CONTROLPLAN.
     HTTP_PORT=${RANGE_START_CONTROLPLAN}
     HTTPS_PORT=$((HTTP_PORT + 1))
-    HTTPS_PORT2=$((HTTPS_PORT + 1))
-    HTTP_PORT2=$((HTTPS_PORT2 + 1))
+    HTTP_PORT2=$((HTTPS_PORT + 1))
+    HTTPS_PORT2=$((HTTP_PORT2 + 1))
+    HTTP_PORT3=$((HTTPS_PORT2 + 1))
+    HTTPS_PORT3=$((HTTP_PORT3 + 1))
+    HTTP_PORT4=$((HTTPS_PORT3 + 1))
+    HTTPS_PORT4=$((HTTP_PORT4 + 1))
+    HTTP_PORT5=$((HTTPS_PORT4 + 1))
+    HTTPS_PORT5=$((HTTP_PORT5 + 1))
+    HTTP_PORT6=$((HTTPS_PORT5 + 1))
+    HTTPS_PORT6=$((HTTP_PORT6 + 1))
 }
 
 # Display environment variables for operations
@@ -206,9 +216,17 @@ show_environment() {
     echo "  USER_NAME=${USER_NAME}"
     echo "  USER_EMAIL=${USER_EMAIL}"
     echo "  HTTP_PORT=${HTTP_PORT}"
-    echo "  HTTP_PORT2=${HTTP_PORT2}"
     echo "  HTTPS_PORT=${HTTPS_PORT}"
+    echo "  HTTP_PORT2=${HTTP_PORT2}"
     echo "  HTTPS_PORT2=${HTTPS_PORT2}"
+    echo "  HTTP_PORT3=${HTTP_PORT3}"
+    echo "  HTTPS_PORT3=${HTTPS_PORT3}"
+    echo "  HTTP_PORT4=${HTTP_PORT4}"
+    echo "  HTTPS_PORT4=${HTTPS_PORT4}"
+    echo "  HTTP_PORT5=${HTTP_PORT5}"
+    echo "  HTTPS_PORT5=${HTTPS_PORT5}"
+    echo "  HTTP_PORT6=${HTTP_PORT6}"
+    echo "  HTTPS_PORT6=${HTTPS_PORT6}"
     echo ""
 }
 
@@ -1090,7 +1108,7 @@ show_nginx_logs() {
 }
 
 show_docker_logs() {
-    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTPS_PORT2=$((HTTPS_PORT2 + 363)) USER_ID=$USER_ID docker-compose logs -f
+    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTP_PORT2=$HTTP_PORT2 HTTPS_PORT2=$((HTTPS_PORT2 + 363)) HTTP_PORT3=$HTTP_PORT3 HTTPS_PORT3=$((HTTPS_PORT3 + 363)) HTTP_PORT4=$HTTP_PORT4 HTTPS_PORT4=$((HTTPS_PORT4 + 363)) HTTP_PORT5=$HTTP_PORT5 HTTPS_PORT5=$((HTTPS_PORT5 + 363)) HTTP_PORT6=$HTTP_PORT6 HTTPS_PORT6=$((HTTPS_PORT6 + 363)) USER_ID=$USER_ID docker-compose logs -f
 }
 
 # Restart services
@@ -1238,7 +1256,7 @@ reload_nginx_config() {
 }
 
 restart_docker_services() {
-    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTPS_PORT2=$((HTTPS_PORT2 + 363)) USER_ID=$USER_ID docker-compose restart
+    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTP_PORT2=$HTTP_PORT2 HTTPS_PORT2=$((HTTPS_PORT2 + 363)) HTTP_PORT3=$HTTP_PORT3 HTTPS_PORT3=$((HTTPS_PORT3 + 363)) HTTP_PORT4=$HTTP_PORT4 HTTPS_PORT4=$((HTTPS_PORT4 + 363)) HTTP_PORT5=$HTTP_PORT5 HTTPS_PORT5=$((HTTPS_PORT5 + 363)) HTTP_PORT6=$HTTP_PORT6 HTTPS_PORT6=$((HTTPS_PORT6 + 363)) USER_ID=$USER_ID docker-compose restart
 }
 
 # Start services
@@ -1502,7 +1520,7 @@ setup_api_token() {
 start_docker_deployment() {
     echo "🐳 Starting Docker deployment..."
     cleanup_docker
-    docker-compose up -d --build
+    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTP_PORT2=$HTTP_PORT2 HTTPS_PORT2=$((HTTPS_PORT2 + 363)) HTTP_PORT3=$HTTP_PORT3 HTTPS_PORT3=$((HTTPS_PORT3 + 363)) HTTP_PORT4=$HTTP_PORT4 HTTPS_PORT4=$((HTTPS_PORT4 + 363)) HTTP_PORT5=$HTTP_PORT5 HTTPS_PORT5=$((HTTPS_PORT5 + 363)) HTTP_PORT6=$HTTP_PORT6 HTTPS_PORT6=$((HTTPS_PORT6 + 363)) USER_ID=$USER_ID docker-compose up -d --build
 
     # Wait and migrate if needed
     if [ "$USE_POSTGRES" = "true" ] && [ -f "softfluid/db/ai_swautomorph.db" ]; then
@@ -1806,7 +1824,7 @@ configure_firewall() {
 
 cleanup_docker() {
     echo "🧹 Cleaning up..."
-    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTPS_PORT2=$((HTTPS_PORT2 + 363)) USER_ID=$USER_ID docker-compose down --remove-orphans
+    HTTP_PORT=$HTTP_PORT HTTPS_PORT=$((HTTPS_PORT + 363)) HTTP_PORT2=$HTTP_PORT2 HTTPS_PORT2=$((HTTPS_PORT2 + 363)) HTTP_PORT3=$HTTP_PORT3 HTTPS_PORT3=$((HTTPS_PORT3 + 363)) HTTP_PORT4=$HTTP_PORT4 HTTPS_PORT4=$((HTTPS_PORT4 + 363)) HTTP_PORT5=$HTTP_PORT5 HTTPS_PORT5=$((HTTPS_PORT5 + 363)) HTTP_PORT6=$HTTP_PORT6 HTTPS_PORT6=$((HTTPS_PORT6 + 363)) USER_ID=$USER_ID docker-compose down --remove-orphans
 }
 
 # Validate user input
