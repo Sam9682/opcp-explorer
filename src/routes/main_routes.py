@@ -8,6 +8,31 @@ from ..config_postgres import DOMAIN, PLTF_NAME, APP_VERSION
 
 main_bp = Blueprint('main', __name__)
 
+
+def effective_app_url(stored_url, derived_url):
+    """Return the URL for the dashboard action button (app[2]).
+
+    Prefer the stored applications.url (a.url) when it is not an Empty_Value,
+    i.e. not None and not empty after trimming surrounding whitespace.
+    Otherwise fall back to the per-user derived user_applications.url (ua.url).
+
+    The stored value is returned exactly as stored (no port recomputation and
+    no trimming of the returned value); ``.strip()`` is only used for the
+    emptiness test.
+
+    Args:
+        stored_url: The stored applications.url value (str or None).
+        derived_url: The per-user derived user_applications.url value.
+
+    Returns:
+        The stored URL when it is non-empty after trimming, otherwise the
+        derived URL.
+    """
+    if stored_url is not None and stored_url.strip() != '':
+        return stored_url
+    return derived_url
+
+
 @main_bp.route('/')
 def index():
     if 'user_id' in session:
@@ -29,7 +54,8 @@ def dashboard():
     # Get applications based on user role with swautomorph_url from deployments
     applications_raw = db_manager.execute_query('''SELECT a.id, a.name, ua.url, a.description, a.git_url, a.git_local_url, a.git_repo_size, 
                a.docker_build_duration, a.docker_start_duration, a.docker_stop_duration, a.docker_ps_duration,
-               d.swautomorph_url
+               d.swautomorph_url,
+               a.url
         FROM applications a
         JOIN user_applications ua ON a.id = ua.application_id
         LEFT JOIN deployments d ON d.user_id = %s AND d.application_name = a.name
@@ -40,10 +66,11 @@ def dashboard():
     # Use URLs directly from the database table user_applications
     applications = []
     for app in applications_raw:
-        app_id, app_name, user_appli_url, description, git_url, git_local_url, git_repo_size, docker_build_duration, docker_start_duration, docker_stop_duration, docker_ps_duration, deployment_url = app
+        app_id, app_name, user_appli_url, description, git_url, git_local_url, git_repo_size, docker_build_duration, docker_start_duration, docker_stop_duration, docker_ps_duration, deployment_url, stored_app_url = app
         
-        # Use the URL stored in the database instead of calculating it
-        applications.append((app_id, app_name, user_appli_url, description, git_url, git_local_url, git_repo_size or 50, docker_build_duration, docker_start_duration or 30, docker_stop_duration or 10, docker_ps_duration, deployment_url or 'Not yet deployed'))
+        # Prefer the stored applications.url (a.url) when set; otherwise fall back to the derived user_applications.url (ua.url)
+        effective_url = effective_app_url(stored_app_url, user_appli_url)
+        applications.append((app_id, app_name, effective_url, description, git_url, git_local_url, git_repo_size or 50, docker_build_duration, docker_start_duration or 30, docker_stop_duration or 10, docker_ps_duration, deployment_url or 'Not yet deployed'))
     
     # Get SSO token for the user
     sso_token = session.get('sso_token', '')

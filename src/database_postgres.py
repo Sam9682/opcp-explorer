@@ -468,6 +468,19 @@ def init_db():
                 conn.rollback()
                 print(f"[INFO] Deferrable FK migration check: {e}")
 
+            # Apply deploy templates catalog and sandbox labeling migration
+            try:
+                migration_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'migration', 'add_deploy_templates.sql')
+                if os.path.exists(migration_path):
+                    with open(migration_path, 'r') as f:
+                        migration_sql = f.read()
+                    cursor.execute(migration_sql)
+                    conn.commit()
+            except Exception as e:
+                # Migration may already be applied, ignore errors
+                conn.rollback()
+                print(f"[INFO] Deploy templates migration check: {e}")
+
             # Ensure opcp-serverless-brik application exists and is assigned to all users
             try:
                 cursor.execute("SELECT id FROM applications WHERE name = %s", ('opcp-serverless-brik',))

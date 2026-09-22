@@ -341,6 +341,21 @@ def api_application_actions(app_id):
                 if existing:
                     return jsonify({'error': f'Application ID {target_id} already exists. Please choose a unique ID.'}), 400
             
+            # Propagate the edited link to the per-user user_applications.url
+            # rows ONLY when the link actually changed. Read the currently
+            # stored applications.url so we can tell a real link edit from a
+            # non-link edit that merely re-submits the existing (or empty) url:
+            #   - non-link edit (url unchanged, incl. empty) -> leave
+            #     user_applications.url untouched (preservation Req 3.1)
+            #   - genuine link change -> propagate to user_applications.url
+            #     (Req 2.1/2.2/2.3), for both ID-unchanged and ID-changing paths
+            current_app = db_manager.execute_query(
+                'SELECT url FROM applications WHERE id = %s',
+                (app_id,), fetch_one=True
+            )
+            current_url = current_app[0] if current_app else None
+            link_changed = (url or '') != (current_url or '')
+
             git_url = data.get('git_url', '')
             git_repo_size = data.get('git_repo_size', 50)
             docker_build_duration = data.get('docker_build_duration')
@@ -358,6 +373,8 @@ def api_application_actions(app_id):
                             WHERE id = %s
                         ''', (target_id, name, url, description, git_url, git_repo_size, docker_build_duration, docker_start_duration, docker_stop_duration, docker_ps_duration, app_id))
                         cursor.execute('UPDATE user_applications SET application_id = %s WHERE application_id = %s', (target_id, app_id))
+                        if link_changed:
+                            cursor.execute('UPDATE user_applications SET url = %s WHERE application_id = %s', (url, target_id))
                         cursor.execute('UPDATE deployments SET application_id = %s WHERE application_id = %s', (target_id, app_id))
                         cursor.execute('UPDATE application_costs SET application_id = %s WHERE application_id = %s', (target_id, app_id))
                         cursor.execute('UPDATE billing_activities SET application_id = %s WHERE application_id = %s', (target_id, app_id))
@@ -368,6 +385,8 @@ def api_application_actions(app_id):
                            docker_build_duration = %s, docker_start_duration = %s, docker_stop_duration = %s, docker_ps_duration = %s
                     WHERE id = %s
                 ''', (name, url, description, git_url, git_repo_size, docker_build_duration, docker_start_duration, docker_stop_duration, docker_ps_duration, app_id))
+                if link_changed:
+                    db_manager.execute_query('UPDATE user_applications SET url = %s WHERE application_id = %s', (url, app_id))
             
             return jsonify({'message': 'Application updated successfully'})
         
