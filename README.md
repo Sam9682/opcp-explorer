@@ -33,6 +33,13 @@ AI-Powered-Store is a centralized application deployment and management platform
 - 🔄 **Multi-server Replication**: Peer-to-peer database replication with sync tokens
 - 🎭 **App Orchestrator**: Automated application lifecycle orchestration with reconciliation
 - 🔒 **Password Reset & 2FA**: Secure password recovery and two-factor authentication via email
+- 🧩 **Deploy Templates Catalog**: One-click blueprints (Static Site, FastAPI, n8n, Ollama, Jupyter, Qdrant Vector DB) deployable identically across Dashboard, CLI, MCP, and REST
+- 🧙 **Onboarding Setup Wizard**: Guided first-run configuration that safely writes `conf/deploy.ini` (timestamped backup, atomic write, hashed admin password)
+- 🧪 **Sandbox Demo Account**: Labeled demo user and sandbox deployments for trying the platform without impacting real data
+- 🔢 **Extended Port Allocation**: 12 consecutive ports (6 HTTP + 6 HTTPS) reserved per application
+- ↕️ **Sortable Dashboard Grids**: Client-side column sorting across all dashboard tables
+- 🟢 **Running-App Highlight**: Running applications are visually highlighted in the dashboard
+- 🗂️ **Configurable Install Layout**: Install folder, Linux user, and paths driven by `conf/deploy.ini` (no hardcoded `/ubuntu/`)
 
 ## PostgreSQL Migration
 
@@ -239,6 +246,35 @@ curl https://www.swautomorph.com/api/jobs \
   -H "Cookie: session=your-session-cookie"
 ```
 
+### Deploy Templates (Onboarding Experience)
+
+The platform ships a catalog of ready-to-deploy blueprints. Every surface (Dashboard, CLI, MCP, REST) deploys through the same template service, so behavior is identical everywhere. Deployed apps are exposed at `https://{domain}/{USER_ID}/{APPLICATION_NAME}`.
+
+Built-in templates:
+
+| Template ID       | Type          | Image                                          |
+|-------------------|---------------|------------------------------------------------|
+| `static-site`     | static_site   | nginx:1.27-alpine                              |
+| `fastapi-starter` | fastapi       | tiangolo/uvicorn-gunicorn-fastapi:python3.11   |
+| `n8n`             | n8n           | n8nio/n8n:latest                               |
+| `ollama`          | ollama        | ollama/ollama:latest                           |
+| `jupyter`         | jupyter       | jupyter/base-notebook:latest                   |
+| `vector-db`       | vector_db     | qdrant/qdrant:latest                           |
+
+```bash
+# List available deploy templates
+curl https://www.swautomorph.com/api/templates \
+  -H "Cookie: session=your-session-cookie"
+
+# Deploy an application from a template
+curl -X POST https://www.swautomorph.com/api/templates/fastapi-starter/deploy \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-session-cookie" \
+  -d '{"application_name":"my-api"}'
+```
+
+On any failure after port allocation, partial records are rolled back in a single transaction and the nginx location block is removed, so no partial resources remain.
+
 ### Container Runtime Isolation
 
 The platform supports two container runtime types, configurable from the **Settings** page (admin only):
@@ -397,7 +433,10 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 │   │   ├── replication_routes.py # Multi-server replication
 │   │   ├── security_routes.py   # Password reset & 2FA
 │   │   ├── serverless_routes.py  # Serverless Docker execution
-│   │   └── gpu_routes.py         # MIG shared GPU management
+│   │   ├── gpu_routes.py         # MIG shared GPU management
+│   │   ├── templates_routes.py   # Deploy Templates REST API
+│   │   ├── wizard_routes.py      # Onboarding setup wizard API
+│   │   └── sandbox_routes.py     # Sandbox demo provision/reset/teardown
 │   ├── serverless/        # Serverless execution engine
 │   ├── ControlPlanFlaskApp_postgres.py    # Main Flask application
 │   ├── database_postgres.py      # PostgreSQL database manager with connection pooling
@@ -406,12 +445,17 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 │   ├── orchestrator.py           # Application orchestration & reconciliation
 │   ├── replication_manager.py    # Peer-to-peer database replication
 │   ├── platform_discovery.py     # Platform capability discovery
+│   ├── template_catalog.py       # Deploy Templates catalog (single source of truth)
+│   ├── template_deploy.py        # Surface-agnostic template deploy service
+│   ├── configuration_writer.py   # Safe writer for conf/deploy.ini (onboarding wizard)
 │   ├── config.py                 # Configuration & multi-language
 │   └── auth.py                   # Authentication utilities
 ├── migration/             # Database migration scripts
 │   ├── add_serverless_jobs.sql          # Serverless jobs schema
 │   ├── add_mig_gpu.sql                  # MIG GPU tables & server flag
 │   ├── add_password_reset_and_2fa.sql   # Security features schema
+│   ├── add_deploy_templates.sql         # Deploy templates catalog & sandbox labeling
+│   ├── add_extended_ports_to_user_applications.sql # 12-port allocation per app
 │   └── ...                              # Other migrations
 ├── scripts/               # CLI tools and utilities
 │   ├── aipoweredstore_cli.py            # Command-line interface
@@ -455,6 +499,8 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 - **Deployment**: Multi-server support with capacity management, automatic allocation, and streaming APIs
 - **App Orchestrator**: Automated application lifecycle management with reconciliation loop
 - **Serverless Execution**: Docker-based job submission and execution engine with worker processes
+- **Deploy Templates**: Validated blueprint catalog (`deploy_templates` table) with a surface-agnostic deploy service shared by Dashboard, CLI, MCP, and REST
+- **Onboarding Wizard**: First-run setup that persists `conf/deploy.ini` atomically with a timestamped backup and hashes the admin password into the database
 - **Container Runtime**: Configurable runtime type — standard containers (runc) or MicroVM isolation (Kata Containers) for stronger workload boundaries
 - **MIG Shared GPU**: NVIDIA Multi-Instance GPU partitioning via SSH with per-server configuration and web UI
 - **Replication**: Peer-to-peer database replication across multiple servers with sync tokens

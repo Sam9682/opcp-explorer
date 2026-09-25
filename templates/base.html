@@ -17,6 +17,8 @@
                         {% if username %}<span class="nav-user">{{ get_text('welcome') }}, {{ username }}</span>{% endif %}
                         <a href="javascript:void(0)" onclick="showTab('apps')" id="navApps" class="nav-active">{{ get_text('applications') }}</a>
                         <a href="javascript:void(0)" onclick="showTab('orchestratorServerless')" id="navOrchestratorServerless">🚀 Serverless</a>
+                        <a href="javascript:void(0)" onclick="showTab('marketplace')" id="navMarketplace">🛒 {{ get_text('marketplace') }}</a>
+                        <a href="javascript:void(0)" onclick="showTab('sandbox')" id="navSandbox">🧪 {{ get_text('sandbox') }}</a>
                         <a href="javascript:void(0)" onclick="showTab('billing')" id="navBilling">{{ get_text('billing') }}</a>
                         <a href="javascript:void(0)" onclick="showTab('security')" id="navSecurity">🔐</a>
                         {% if username == 'admin' %}
@@ -78,6 +80,8 @@
                     {% if username %}<span class="nav-user">{{ get_text('welcome') }}, {{ username }}</span>{% endif %}
                     <a href="javascript:void(0)" onclick="showTab('apps')">{{ get_text('applications') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('orchestratorServerless')">🚀 Serverless</a>
+                    <a href="javascript:void(0)" onclick="showTab('marketplace')">🛒 {{ get_text('marketplace') }}</a>
+                    <a href="javascript:void(0)" onclick="showTab('sandbox')">🧪 {{ get_text('sandbox') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('billing')">{{ get_text('billing') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('security')">🔐 {{ get_text('account_security') }}</a>
                     {% if username == 'admin' %}
@@ -195,6 +199,12 @@
             } else if (activeTab === 'orchestratorServerless') {
                 const navOrchestratorServerless = document.getElementById('navOrchestratorServerless');
                 if (navOrchestratorServerless) navOrchestratorServerless.classList.add('nav-active');
+            } else if (activeTab === 'marketplace') {
+                const navMarketplace = document.getElementById('navMarketplace');
+                if (navMarketplace) navMarketplace.classList.add('nav-active');
+            } else if (activeTab === 'sandbox') {
+                const navSandbox = document.getElementById('navSandbox');
+                if (navSandbox) navSandbox.classList.add('nav-active');
             }
         }
         

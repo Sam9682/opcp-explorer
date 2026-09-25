@@ -1001,6 +1001,273 @@ function resolveAppCardBackgroundColor(logs) {
     return statusToBackgroundColor(resolveAppCardStatus(logs));
 }
 
+/* ==========================================================================
+ * Onboarding: Template Marketplace + Sandbox / Demo Mode (Req 8.2-8.6, 3.3)
+ * ========================================================================== */
+
+/**
+ * Allowed sandbox deployment statuses surfaced on the Dashboard (Req 3.3).
+ * Mirrors ``_ALLOWED_STATUSES`` in src/routes/sandbox_routes.py so the JS
+ * render helper coerces to the same {running, stopped, failed} set.
+ */
+const SANDBOX_ALLOWED_STATUSES = ['running', 'stopped', 'failed'];
+
+/**
+ * Pure render helper for the dashboard sandbox payload (Req 3.3).
+ *
+ * Given an arbitrary array of sandbox Sample_Application objects (as returned
+ * by GET /api/sandbox/status), produce, for each application, a normalized
+ * entry carrying a deployment status drawn from {running, stopped, failed} and
+ * its access URL. Any status not in the allowed set (including missing/unknown)
+ * is coerced to 'failed', mirroring the server's ``_normalize_status``. This
+ * function is intentionally DOM-free and side-effect-free so it is testable in
+ * the Node harness (tests/js/onboarding-render.test.js, Property 9).
+ *
+ * @param {Array<Object>} apps - sandbox applications; each may carry
+ *        application_id, application_name, status, access_url.
+ * @returns {Array<{application_name: (string|null), status: string, access_url: (string|null)}>}
+ *          one entry per input application, in input order.
+ */
+function renderSandboxApps(apps) {
+    const list = Array.isArray(apps) ? apps : [];
+    return list.map(function (app) {
+        const a = (app && typeof app === 'object') ? app : {};
+        const rawStatus = a.status;
+        const status = SANDBOX_ALLOWED_STATUSES.indexOf(rawStatus) !== -1
+            ? rawStatus
+            : 'failed';
+        return {
+            application_name: (a.application_name != null) ? a.application_name : null,
+            status: status,
+            access_url: (a.access_url != null) ? a.access_url : null,
+        };
+    });
+}
+
+/**
+ * Fetch the template catalog from GET /api/templates and render the Marketplace
+ * panel with a one-click deploy control per template (Req 8.2, 8.5, 8.6).
+ * Handles 401 gracefully by showing an auth-required message (Req 8.2) without
+ * exposing any client path that bypasses the server-side check.
+ */
+async function loadTemplates() {
+    const content = document.getElementById('marketplaceContent');
+    if (!content) return;
+    content.innerHTML = '<p>Loading templates...</p>';
+
+    try {
+        const response = await fetch('/api/templates', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        if (response.status === 401) {
+            content.innerHTML = '<p style="color:orange;">Authentication is required. Please sign in.</p>';
+            return;
+        }
+        if (!response.ok) {
+            content.innerHTML = '<p style="color:red;">Failed to load templates.</p>';
+            return;
+        }
+
+        const data = await response.json();
+        const templates = (data && data.templates) || [];
+
+        if (templates.length === 0) {
+            content.innerHTML = '<p style="color:orange;">No templates available.</p>';
+            return;
+        }
+
+        let html = '<table style="width:100%; border-collapse:collapse;">';
+        html += '<tr style="border-bottom:1px solid #ddd;">'
+            + '<th style="text-align:left; padding:5px;">Template</th>'
+            + '<th style="text-align:left; padding:5px;">Type</th>'
+            + '<th style="text-align:left; padding:5px;">Ports</th>'
+            + '<th style="text-align:left; padding:5px;">Resources</th>'
+            + '<th style="text-align:left; padding:5px;">Deploy</th></tr>';
+        for (const tpl of templates) {
+            const id = tpl.identifier;
+            const idAttr = escapeHtml(id);
+            const ports = Array.isArray(tpl.ports) ? tpl.ports.join(', ') : '';
+            const resources = (tpl.memory_mb != null ? tpl.memory_mb + ' MB' : '')
+                + (tpl.cpu_cores != null ? ' / ' + tpl.cpu_cores + ' CPU' : '');
+            const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '-');
+            html += '<tr style="border-bottom:1px solid #eee;">';
+            html += '<td style="padding:5px;">' + escapeHtml(id) + '</td>';
+            html += '<td style="padding:5px;">' + escapeHtml(tpl.app_type || '') + '</td>';
+            html += '<td style="padding:5px;">' + escapeHtml(ports) + '</td>';
+            html += '<td style="padding:5px;">' + escapeHtml(resources) + '</td>';
+            html += '<td style="padding:5px;">'
+                + '<input type="text" id="tplName-' + safeId + '" placeholder="Enter an application name" style="margin-right:5px;">'
+                + '<button class="btn btn-primary btn-small" onclick="deployTemplate(\'' + idAttr + '\', \'tplName-' + safeId + '\')">🚀 Deploy</button>'
+                + '</td>';
+            html += '</tr>';
+        }
+        html += '</table>';
+        content.innerHTML = html;
+    } catch (err) {
+        content.innerHTML = '<p style="color:red;">Failed to load templates.</p>';
+    }
+}
+
+/**
+ * One-click deploy of a template via POST /api/templates/{id}/deploy (Req 8.2,
+ * 8.3, 8.4). On success shows the deployed app and its access URL; on failure
+ * shows the failure reason (rollback is handled server-side). A 401 is handled
+ * gracefully with an auth-required message and no deployment is initiated
+ * client-side that could bypass the server check (Req 8.2).
+ *
+ * @param {string} templateId - catalog identifier of the template to deploy.
+ * @param {string} nameInputId - DOM id of the input holding the application name.
+ */
+async function deployTemplate(templateId, nameInputId) {
+    const resultPanel = document.getElementById('marketplaceResultPanel');
+    const resultContent = document.getElementById('marketplaceResultContent');
+    const nameInput = document.getElementById(nameInputId);
+    const applicationName = nameInput ? (nameInput.value || '').trim() : '';
+
+    if (resultPanel) resultPanel.style.display = 'block';
+    if (resultContent) resultContent.innerHTML = '<p>Deploying...</p>';
+
+    if (!applicationName) {
+        if (resultContent) resultContent.innerHTML = '<p style="color:red;">Enter an application name.</p>';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/templates/' + encodeURIComponent(templateId) + '/deploy', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ application_name: applicationName })
+        });
+
+        if (response.status === 401) {
+            if (resultContent) resultContent.innerHTML = '<p style="color:orange;">Authentication is required. Please sign in.</p>';
+            return;
+        }
+
+        const data = await response.json().catch(function () { return {}; });
+
+        if (response.ok) {
+            const name = escapeHtml(data.application_name || applicationName);
+            const url = data.access_url || '';
+            let html = '<p style="color:green;">✅ Application deployed: <strong>' + name + '</strong></p>';
+            if (url) {
+                html += '<p>Access URL: <a href="' + escapeHtml(url) + '" target="_blank">' + escapeHtml(url) + '</a></p>';
+            }
+            if (resultContent) resultContent.innerHTML = html;
+        } else {
+            const reason = escapeHtml((data && data.error) || 'Deployment failed');
+            if (resultContent) resultContent.innerHTML = '<p style="color:red;">❌ Deployment failed: ' + reason + '</p>';
+        }
+    } catch (err) {
+        if (resultContent) resultContent.innerHTML = '<p style="color:red;">❌ Deployment failed.</p>';
+    }
+}
+
+/**
+ * Trigger a sandbox lifecycle action (provision | reset | teardown) via
+ * POST /api/sandbox/{action}, then refresh the status panel (Req 1.6, 2.1, 2.2).
+ * A 401 is handled gracefully with an auth-required message.
+ *
+ * @param {('provision'|'reset'|'teardown')} action - the lifecycle action.
+ */
+async function sandboxAction(action) {
+    const content = document.getElementById('sandboxStatusContent');
+    if (content) content.innerHTML = '<p>Working...</p>';
+
+    try {
+        const response = await fetch('/api/sandbox/' + encodeURIComponent(action), {
+            method: 'POST',
+            credentials: 'same-origin'
+        });
+
+        if (response.status === 401) {
+            if (content) content.innerHTML = '<p style="color:orange;">Authentication is required. Please sign in.</p>';
+            return;
+        }
+
+        const data = await response.json().catch(function () { return {}; });
+        if (!response.ok && data && data.error) {
+            if (content) content.innerHTML = '<p style="color:red;">' + escapeHtml(data.error) + '</p>';
+        }
+    } catch (err) {
+        if (content) content.innerHTML = '<p style="color:red;">Sandbox action failed.</p>';
+    } finally {
+        // Reflect the resulting state regardless of the action outcome.
+        loadSandboxStatus();
+    }
+}
+
+/**
+ * Poll GET /api/sandbox/status and render the current sandbox apps with their
+ * normalized status and access URL (Req 1.6, 3.3). Uses the pure
+ * {@link renderSandboxApps} helper so the rendered set matches what the harness
+ * test asserts. A 401 is handled gracefully.
+ */
+async function loadSandboxStatus() {
+    const content = document.getElementById('sandboxStatusContent');
+    if (!content) return;
+
+    try {
+        const response = await fetch('/api/sandbox/status', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        if (response.status === 401) {
+            content.innerHTML = '<p style="color:orange;">Authentication is required. Please sign in.</p>';
+            return;
+        }
+        if (!response.ok) {
+            content.innerHTML = '<p style="color:red;">Failed to load sandbox status.</p>';
+            return;
+        }
+
+        const data = await response.json();
+        if (!data.exists) {
+            content.innerHTML = '<p style="color:orange;">No sandbox environment is present.</p>';
+            return;
+        }
+
+        const rows = renderSandboxApps(data.apps);
+        if (rows.length === 0) {
+            content.innerHTML = '<p>No sandbox applications.</p>';
+            return;
+        }
+
+        let html = '<table style="width:100%; border-collapse:collapse;">';
+        html += '<tr style="border-bottom:1px solid #ddd;">'
+            + '<th style="text-align:left; padding:5px;">Application Name</th>'
+            + '<th style="text-align:left; padding:5px;">Status</th>'
+            + '<th style="text-align:left; padding:5px;">Access URL</th></tr>';
+        for (const row of rows) {
+            let badge;
+            if (row.status === 'running') {
+                badge = '<span style="background:#28a745; color:#fff; padding:2px 8px; border-radius:3px; font-size:12px;">running</span>';
+            } else if (row.status === 'stopped') {
+                badge = '<span style="background:#6c757d; color:#fff; padding:2px 8px; border-radius:3px; font-size:12px;">stopped</span>';
+            } else {
+                badge = '<span style="background:#dc3545; color:#fff; padding:2px 8px; border-radius:3px; font-size:12px;">failed</span>';
+            }
+            const url = row.access_url || '';
+            const urlCell = url
+                ? '<a href="' + escapeHtml(url) + '" target="_blank">' + escapeHtml(url) + '</a>'
+                : '';
+            html += '<tr style="border-bottom:1px solid #eee;">';
+            html += '<td style="padding:5px;">' + escapeHtml(row.application_name || '') + '</td>';
+            html += '<td style="padding:5px;">' + badge + '</td>';
+            html += '<td style="padding:5px;">' + urlCell + '</td>';
+            html += '</tr>';
+        }
+        html += '</table>';
+        content.innerHTML = html;
+    } catch (err) {
+        content.innerHTML = '<p style="color:red;">Failed to load sandbox status.</p>';
+    }
+}
+
 /*
  * Export the Sort_Helper functions for the Node/jsdom test harness. In the
  * browser `module` is undefined, so this block is skipped and the functions
@@ -1025,5 +1292,8 @@ if (typeof module !== 'undefined' && module.exports) {
         resolveAppCardStatus,
         statusToBackgroundColor,
         resolveAppCardBackgroundColor,
+        // Onboarding sandbox render helper (Req 3.3, tested by task 15.3)
+        SANDBOX_ALLOWED_STATUSES,
+        renderSandboxApps,
     };
 }

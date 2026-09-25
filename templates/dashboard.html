@@ -942,6 +942,54 @@
         </div>
     </div>
 
+    <!-- Template Marketplace Section (Onboarding, Req 8.2-8.6) -->
+    <div id="marketplaceSection" class="tab-content" style="display: none;">
+        <div class="section-header">
+            <h2>🛒 {{ get_text('marketplace') }}</h2>
+            <button class="btn btn-secondary" onclick="loadTemplates()">🔄 {{ get_text('refresh') }}</button>
+        </div>
+
+        <!-- Marketplace Templates Panel -->
+        <div id="marketplacePanel" style="margin-bottom: 20px; padding: 15px; background: #eef6ff; border-radius: 5px; border: 1px solid #b8daff;">
+            <h3 style="margin-top: 0;">🛒 {{ get_text('marketplace') }}</h3>
+            <p style="font-size: 13px; color: #666; margin-top: 0;">{{ get_text('marketplace_desc') }}</p>
+            <div id="marketplaceContent">
+                <p>{{ get_text('loading_templates') }}</p>
+            </div>
+        </div>
+
+        <!-- Marketplace Deploy Result Panel -->
+        <div id="marketplaceResultPanel" style="display: none; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #ddd;">
+            <h3 style="margin-top: 0;">{{ get_text('deploy') }}</h3>
+            <div id="marketplaceResultContent"></div>
+        </div>
+    </div>
+
+    <!-- Sandbox / Demo Mode Section (Onboarding, Req 1.6, 2.1, 2.2, 3.3) -->
+    <div id="sandboxSection" class="tab-content" style="display: none;">
+        <div class="section-header">
+            <h2>🧪 {{ get_text('sandbox') }}</h2>
+            <button class="btn btn-secondary" onclick="loadSandboxStatus()">🔄 {{ get_text('refresh') }}</button>
+        </div>
+
+        <!-- Sandbox Controls Panel -->
+        <div id="sandboxControlsPanel" style="margin-bottom: 20px; padding: 15px; background: #eef6ff; border-radius: 5px; border: 1px solid #b8daff;">
+            <h3 style="margin-top: 0;">🧪 {{ get_text('sandbox') }}</h3>
+            <p style="font-size: 13px; color: #666; margin-top: 0;">{{ get_text('sandbox_desc') }}</p>
+            <button class="btn btn-primary" onclick="sandboxAction('provision')">🚀 {{ get_text('sandbox_provision') }}</button>
+            <button class="btn btn-warning" onclick="sandboxAction('reset')">🔄 {{ get_text('sandbox_reset') }}</button>
+            <button class="btn btn-danger" onclick="sandboxAction('teardown')">🗑️ {{ get_text('sandbox_teardown') }}</button>
+        </div>
+
+        <!-- Sandbox Status Panel -->
+        <div id="sandboxStatusPanel" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #ddd;">
+            <h3 style="margin-top: 0;">📊 {{ get_text('sandbox_status') }}</h3>
+            <div id="sandboxStatusContent">
+                <p>{{ get_text('sandbox_loading') }}</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Deployment Logs Section -->
     <!-- Logs section removed from main panel -->
         </div>
@@ -1119,6 +1167,12 @@ function showTab(tab) {
     const orchestratorServerlessSection = document.getElementById('orchestratorServerlessSection');
     if (orchestratorServerlessSection) orchestratorServerlessSection.style.display = 'none';
     
+    const marketplaceSection = document.getElementById('marketplaceSection');
+    if (marketplaceSection) marketplaceSection.style.display = 'none';
+    
+    const sandboxSection = document.getElementById('sandboxSection');
+    if (sandboxSection) sandboxSection.style.display = 'none';
+    
     // Control virtual agents panel visibility
     const agentsPanel = document.getElementById('agentsPanel');
     if (agentsPanel) {
@@ -1186,6 +1240,16 @@ function showTab(tab) {
             refreshJobList();
             loadServerlessMetrics();
             startServerlessAutoRefresh();
+        }
+    } else if (tab === 'marketplace') {
+        if (marketplaceSection) {
+            marketplaceSection.style.display = 'block';
+            loadTemplates();
+        }
+    } else if (tab === 'sandbox') {
+        if (sandboxSection) {
+            sandboxSection.style.display = 'block';
+            loadSandboxStatus();
         }
     }
     
