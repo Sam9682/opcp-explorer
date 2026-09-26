@@ -481,6 +481,19 @@ def init_db():
                 conn.rollback()
                 print(f"[INFO] Deploy templates migration check: {e}")
 
+            # Apply extended ports migration for user_applications (ports 3-6)
+            try:
+                migration_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'migration', 'add_extended_ports_to_user_applications.sql')
+                if os.path.exists(migration_path):
+                    with open(migration_path, 'r') as f:
+                        migration_sql = f.read()
+                    cursor.execute(migration_sql)
+                    conn.commit()
+            except Exception as e:
+                # Migration may already be applied, ignore errors
+                conn.rollback()
+                print(f"[INFO] Extended ports migration check: {e}")
+
             # Ensure opcp-serverless-brik application exists and is assigned to all users
             try:
                 cursor.execute("SELECT id FROM applications WHERE name = %s", ('opcp-serverless-brik',))
