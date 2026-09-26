@@ -3,6 +3,7 @@ import os
 import subprocess
 import logging
 from typing import Optional
+from urllib.parse import urlparse, urlunparse
 from .config_postgres import PLTF_FOLDER
 
 logger = logging.getLogger(__name__)
@@ -11,9 +12,61 @@ NGINX_CONF_DIR = "/etc/nginx/sites-available"
 NGINX_ENABLED_DIR = "/etc/nginx/sites-enabled"
 NGINX_CONF_FILE = PLTF_FOLDER
 
+
+def to_http_upstream_url(user_appli_url: str) -> str:
+    """Convert an application URL to the HTTP upstream used by nginx proxy_pass.
+
+    Application URLs are stored using the HTTPS scheme and the HTTPS port
+    (the second entry of each port pair, e.g. ``https://host:8525``). The
+    upstream that nginx should proxy to is the HTTP endpoint: the HTTP
+    scheme and the HTTP port, which is the first entry of the pair and always
+    one below the HTTPS port (e.g. ``http://host:8524``).
+
+    The URL is returned without a trailing slash; callers append their own.
+    """
+    if not user_appli_url:
+        return user_appli_url
+
+    raw = user_appli_url.rstrip('/')
+
+    try:
+        # urlparse only fills netloc/port when the URL has a "//" authority.
+        # For bare "host:port" forms it mistakes the host for the scheme, so
+        # normalise by prepending a scheme when one is absent.
+        if "://" not in raw:
+            raw_for_parse = f"https://{raw}"
+        else:
+            raw_for_parse = raw
+        parsed = urlparse(raw_for_parse)
+
+        host = parsed.hostname
+        port = parsed.port
+
+        if host is None:
+            # Could not parse a host; fall back to the original value.
+            return raw
+
+        if port is not None:
+            # HTTP port is the first of the HTTP/HTTPS pair (one below HTTPS).
+            http_port = port - 1 if port > 0 else port
+            netloc = f"{host}:{http_port}"
+        else:
+            netloc = host
+
+        rebuilt = urlunparse(('http', netloc, parsed.path or '', parsed.params, parsed.query, parsed.fragment))
+        return rebuilt.rstrip('/')
+    except (ValueError, IndexError):
+        logger.warning("Could not derive HTTP upstream from URL '%s'; using it as-is", user_appli_url)
+        return raw
+
+
 def generate_location_block(user_name: str, app_name: str, deployment_url: str, user_appli_url: str) -> str:
     """Generate nginx location block for user application"""
     location_path = f"/{user_name}/{app_name}/"
+
+    # nginx must proxy to the HTTP endpoint (HTTP scheme + HTTP port, the first
+    # port of the pair), not the HTTPS one stored on the application URL.
+    user_appli_url = to_http_upstream_url(user_appli_url)
 
     return f"""
     # Dynamic location for user {user_name} - {app_name}
