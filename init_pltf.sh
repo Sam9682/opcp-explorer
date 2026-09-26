@@ -199,6 +199,7 @@ PLTF_FOLDER="${PLTF_FOLDER:-opcp-explorer}"
 print_step "Cloning OPCP-Explorer repository..."
 git clone https://github.com/Sam9682/opcp-explorer.git ${PLTF_FOLDER} > /dev/null 2>&1
 cd ${PLTF_FOLDER}
+git submodule add git@github.com:Sam9682/ai-swautomorph--shared.git shared > /dev/null 2>&1
 git submodule update --init --recursive > /dev/null 2>&1
 print_success "Repository cloned"
 
