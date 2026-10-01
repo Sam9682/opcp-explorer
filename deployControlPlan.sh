@@ -1287,6 +1287,9 @@ start_local_deployment() {
     configure_nginx
     configure_firewall
 
+    # Sync nginx locations as the final startup step (runs on top of reloaded nginx)
+    sync_nginx_locations
+
     echo "✅ Local deployment completed successfully!"
 }
 
@@ -1533,6 +1536,9 @@ start_docker_deployment() {
     fi
 
     echo "  ✅ Docker services started"
+
+    # Sync nginx locations as the final startup step (runs once services are up)
+    sync_nginx_locations
 }
 
 install_python_dependencies() {
@@ -1824,6 +1830,30 @@ configure_firewall() {
     sudo ufw allow 3000/tcp
     sudo ufw allow 53/tcp
     sudo ufw --force enable
+}
+
+# Sync nginx location config from the database (final startup step).
+# Runs with the activated .venv Python so src.nginx_manager and
+# src.database_postgres import correctly. A sync failure is non-fatal:
+# it warns and lets the deploy complete (guarded against set -e).
+sync_nginx_locations() {
+    echo "🔁 Syncing nginx locations from database..."
+    if [ ! -f "./scripts/sync_nginx_locations.py" ]; then
+        echo -e "  $WARN sync script not found - skipping nginx location sync"
+        return 0
+    fi
+    # Prefer the venv python; fall back to python3. Capture the exit code
+    # explicitly so a non-zero sync does not trip `set -e`.
+    local sync_python="python3"
+    if [ -x ".venv/bin/python" ]; then
+        sync_python=".venv/bin/python"
+    fi
+    if "$sync_python" ./scripts/sync_nginx_locations.py; then
+        echo -e "  $OK Nginx locations synced from database"
+    else
+        echo -e "  $WARN Nginx location sync failed (exit non-zero) - continuing deploy"
+    fi
+    return 0
 }
 
 cleanup_docker() {
