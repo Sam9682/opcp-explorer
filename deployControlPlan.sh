@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# OPCP-Explorer Production Deployment Script
-# Organized with functions for better maintainability
+# Platform Production Deployment Script
+# Organized with functions for better maintainability.
+# The platform display name is read from PLTF_NAME in conf/deploy.ini.
 
 set -e
 
@@ -73,6 +74,8 @@ RANGE_START_CONTROLPLAN=${RANGE_START_CONTROLPLAN:-80}
 RANGE_RESERVED_CONTROLPLAN=${RANGE_RESERVED_CONTROLPLAN:-0}
 S3_BUCKET_NAME=${S3_BUCKET_NAME:-"opcp-s3"}
 PLTF_FOLDER=${PLTF_FOLDER:-"opcp-explorer"}
+# Display name shown in banners/usage; read from PLTF_NAME in deploy.ini.
+PLTF_NAME=${PLTF_NAME:-"OPCP-Explorer_AI_SharedGPU_Docker_Serverless"}
 LINUX_USER_INSTALLATION=${LINUX_USER_INSTALLATION:-"ubuntu"}
 
 # Global Parameters (command line args override config)
@@ -2106,7 +2109,7 @@ EOF
 
 # Show usage information
 help() {
-    echo "🚀 OPCP-Explorer Deployment Script v${VERSION}"
+    echo "🚀 ${PLTF_NAME} Deployment Script v${VERSION}"
     echo "Usage: $0 [COMMAND] [MODE] [USER_ID] [USER_NAME] [USER_EMAIL] [DESCRIPTION] [OPTIONS]"
     echo ""
     echo "COMMANDS:"
@@ -2338,7 +2341,7 @@ main() {
             exit 0
             ;;
         "version"|"--version"|"-v")
-            echo "OPCP-Explorer v${VERSION}"
+            echo "${PLTF_NAME} v${VERSION}"
             exit 0
             ;;
         *)

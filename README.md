@@ -73,9 +73,17 @@ which python3 && which pip && which docker && which docker-compose
 
 ### Interactive Deployment (Recommended)
 ```bash
-# Clone repository (folder name is configured via PLTF_FOLDER in conf/deploy.ini)
-git clone https://github.com/your-repo/opcp-explorer.git
-cd opcp-explorer  # default PLTF_FOLDER value
+# Bootstrap a fresh server. init_pltf.sh prompts for the platform identity
+# (folder slug, display name, repo URL and shared submodule URL) and writes
+# PLTF_NAME / PLTF_FOLDER into conf/deploy.ini. Press Enter to accept the
+# shown defaults, or pre-set the values via environment variables for a
+# non-interactive run:
+#   PLTF_FOLDER=my-platform PLTF_NAME="My Platform" \
+#   REPO_URL=https://github.com/your-org/your-repo.git ./init_pltf.sh
+./init_pltf.sh
+
+# The repository is cloned into the chosen PLTF_FOLDER; enter it to deploy.
+cd "$PLTF_FOLDER"
 
 # Interactive deployment with menu selection
 ./deployControlPlan.sh start

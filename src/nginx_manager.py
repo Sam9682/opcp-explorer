@@ -14,6 +14,13 @@ NGINX_CONF_DIR = "/etc/nginx/sites-available"
 NGINX_ENABLED_DIR = "/etc/nginx/sites-enabled"
 NGINX_CONF_FILE = PLTF_FOLDER
 
+# Logical component identifiers. These are the classification labels used
+# internally to map a running container to a role. They are intentionally
+# decoupled from the container-name markers ('-nginx-', '-app-') used to
+# detect the role, so a component's logical name can be changed in one place.
+FRONTEND_COMPONENT = 'frontend-component'
+BACKEND_COMPONENT = 'backend-component'
+
 
 def discover_running_ports() -> Dict[Tuple[str, str], Dict[str, int]]:
     """Discover the real HTTP/HTTPS ports of running app containers.
@@ -81,12 +88,12 @@ def discover_running_ports() -> Dict[Tuple[str, str], Dict[str, int]]:
 
         entry = mapping.setdefault(user_app, {})
 
-        if component == 'nginx':
+        if component == FRONTEND_COMPONENT:
             # The HTTPS sidecar: host port mapped to container 443.
             https_port = _published_port_for_target(ports_str, 443)
             if https_port is not None:
                 entry['https'] = https_port
-        elif component == 'app':
+        elif component == BACKEND_COMPONENT:
             # The HTTP backend nginx must proxy_pass to. Use the first
             # published host port regardless of the internal container port.
             http_port = _first_published_port(ports_str)
@@ -105,9 +112,9 @@ def _component_from_name(name: str) -> Optional[str]:
     if not name:
         return None
     if '-nginx-' in name:
-        return 'nginx'
+        return FRONTEND_COMPONENT
     if '-app-' in name:
-        return 'app'
+        return BACKEND_COMPONENT
     if '-postgres-' in name:
         return 'postgres'
     if '-frontend-' in name:

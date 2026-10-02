@@ -42,8 +42,8 @@ def test_first_published_port_app_agnostic_internal_port():
 
 
 def test_component_from_name():
-    assert nm._component_from_name("opcp-openstack-first-steps-nginx-1-6136") == "nginx"
-    assert nm._component_from_name("opcp-openstack-first-steps-app-1-6137") == "app"
+    assert nm._component_from_name("opcp-openstack-first-steps-nginx-1-6136") == nm.FRONTEND_COMPONENT
+    assert nm._component_from_name("opcp-openstack-first-steps-app-1-6137") == nm.BACKEND_COMPONENT
     assert nm._component_from_name("ai-shai-web-interface-postgres-1-5432") == "postgres"
     assert nm._component_from_name("weird-name") is None
 
