@@ -1616,7 +1616,7 @@ start_flask_application() {
         export USE_POSTGRES=true
         export PYTHONPATH=/home/${LINUX_USER_INSTALLATION}/${NAME_OF_APPLICATION}
 
-        if python3 ./scripts/aipoweredstore_cli.py init-db; then
+        if python3 ./scripts/controller_cli.py init-db; then
             echo "  ✅ Database initialized successfully"
         else
             echo "  ⚠️ Database initialization failed - continuing anyway"

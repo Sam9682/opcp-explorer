@@ -125,7 +125,7 @@ fi
 prompt_platform_identity
 
 echo -e "${BLUE}+==========================================+${NC}"
-echo -e "${BLUE}|${NC}   ${PLTF_NAME} Platform Setup    ${BLUE}|${NC}"
+echo -e "${BLUE}${NC}      ${PLTF_NAME} Platform Setup    ${BLUE}|${NC}"
 echo -e "${BLUE}+==========================================+${NC}"
 echo ""
 
@@ -336,3 +336,4 @@ print_warning "     - PLTF_NAME and PLTF_FOLDER are already set in ./conf/deploy
 print_warning "     - add ssl certificate in ~/${PLTF_FOLDER}/ssl/fullchain_domain.crt for nginx https"
 print_warning "     - add ssl private key in ~/${PLTF_FOLDER}/ssl/privateKey_domain.key for nginx https"
 print_warning "     - enter aws_access_key_id & aws_secret_access_key in ~/.aws/credentials for s3 synchronization"
+print_warning "     - the default user is admin/password"

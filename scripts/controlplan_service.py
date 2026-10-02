@@ -2,7 +2,7 @@
 """Systemd unit rendering for the control-plan service.
 
 Single source of truth for the ``swautomorph-controlplan.service`` content so
-the install command (``aipoweredstore_cli.py install-as-systemctl-service``)
+the install command (``controller_cli.py install-as-systemctl-service``)
 and the committed fallback artifact never diverge. The install user and all
 ``/home/<user>/<folder>`` paths are derived from ``LINUX_USER_INSTALLATION``
 and ``PLTF_FOLDER`` in ``conf/deploy.ini``; the canonical fallbacks (``psmc``
@@ -59,7 +59,7 @@ After=network.target
 [Service]
 Type=forking
 # GENERATED ARTIFACT - regenerate with 'python3 scripts/controlplan_service.py'
-# or at install time via 'aipoweredstore_cli.py install-as-systemctl-service'.
+# or at install time via 'controller_cli.py install-as-systemctl-service'.
 # User= and the /home/<user>/<folder> paths are derived from
 # LINUX_USER_INSTALLATION and PLTF_FOLDER in conf/deploy.ini.
 ExecStart={base_path}/scripts/start_swautomorph_controlplan.sh

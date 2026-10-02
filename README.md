@@ -113,7 +113,7 @@ docker-compose up -d --build
 pip install -r requirements.txt
 
 # 2. Initialize database
-python3 ./scripts/aipoweredstore_cli.py init-db
+python3 ./scripts/controller_cli.py init-db
 
 # 3. Start application
 python3 src/ControlPlanFlaskApp_postgres.py
@@ -143,10 +143,10 @@ MODSECURITY_CONF_DIR="/etc/nginx/modsec"
 ### Database Initialization
 ```bash
 # Initialize database schema
-python3 ./scripts/aipoweredstore_cli.py init-db
+python3 ./scripts/controller_cli.py init-db
 
 # Check database health
-python3 ./scripts/aipoweredstore_cli.py db-health
+python3 ./scripts/controller_cli.py db-health
 ```
 
 ### SSL Certificate Setup
@@ -340,25 +340,25 @@ curl -X POST https://www.swautomorph.com/api/deployments \
 ### Enhanced CLI Interface
 ```bash
 # Register user
-python3 ./scripts/aipoweredstore_cli.py register --username agent --email agent@example.com --password secure_pass
+python3 ./scripts/controller_cli.py register --username agent --email agent@example.com --password secure_pass
 
 # List applications
-python3 ./scripts/aipoweredstore_cli.py list-apps
+python3 ./scripts/controller_cli.py list-apps
 
 # Add application
-python3 ./scripts/aipoweredstore_cli.py add-app --name MyApp --url https://myapp.com --description "My Application"
+python3 ./scripts/controller_cli.py add-app --name MyApp --url https://myapp.com --description "My Application"
 
 # Validate SSO token
-python3 ./scripts/aipoweredstore_cli.py validate-token --token your-sso-token
+python3 ./scripts/controller_cli.py validate-token --token your-sso-token
 
 # Database health check with detailed statistics
-python3 ./scripts/aipoweredstore_cli.py db-health
+python3 ./scripts/controller_cli.py db-health
 
 # Mount S3 storage for backups
-python3 ./scripts/aipoweredstore_cli.py mount-s3fs softfluid /mnt/s3
+python3 ./scripts/controller_cli.py mount-s3fs softfluid /mnt/s3
 
 # Initialize database with thread-safe operations
-python3 ./scripts/aipoweredstore_cli.py init-db
+python3 ./scripts/controller_cli.py init-db
 ```
 
 ### MCP Protocol
@@ -408,7 +408,7 @@ curl https://www.swautomorph.com/api/deployments/1/logs
 ./deployControlPlan.sh --recover_db
 
 # Database health check
-python3 ./scripts/aipoweredstore_cli.py db-health
+python3 ./scripts/controller_cli.py db-health
 ```
 
 ## Default Configuration
@@ -466,7 +466,7 @@ python3 ./scripts/aipoweredstore_cli.py db-health
 │   ├── add_extended_ports_to_user_applications.sql # 12-port allocation per app
 │   └── ...                              # Other migrations
 ├── scripts/               # CLI tools and utilities
-│   ├── aipoweredstore_cli.py            # Command-line interface
+│   ├── controller_cli.py            # Command-line interface
 │   ├── mcp_server.py             # Model Context Protocol server
 │   ├── sync_nginx_locations.py   # Sync nginx locations from database
 │   └── postgresql_schema.sql     # PostgreSQL schema definition
@@ -539,7 +539,7 @@ sudo chown -R ubuntu:ubuntu /home/ubuntu/deployments/
 sudo chown -R ubuntu:ubuntu /home/ubuntu/<PLTF_FOLDER>/
 
 # Database issues
-python3 ./scripts/aipoweredstore_cli.py db-health
+python3 ./scripts/controller_cli.py db-health
 ./deployControlPlan.sh --recover_db
 
 # SSL certificate issues
