@@ -111,13 +111,17 @@ def _component_from_name(name: str) -> Optional[str]:
     """
     if not name:
         return None
+    if FRONTEND_COMPONENT in name:
+        return FRONTEND_COMPONENT
+    if BACKEND_COMPONENT in name:
+        return BACKEND_COMPONENT
     if '-nginx-' in name:
         return FRONTEND_COMPONENT
     if '-app-' in name:
         return BACKEND_COMPONENT
     if '-postgres-' in name:
         return 'postgres'
-    if '-frontend-' in name:
+    if FRONTEND_COMPONENT in name:
         return 'frontend'
     return None
 
@@ -284,31 +288,71 @@ def build_http_upstream(user_appli_url: str, real_http_port: Optional[int] = Non
     return to_http_upstream_url(user_appli_url)
 
 
+def build_upstream_url(user_appli_url: str, real_http_port: Optional[int] = None,
+                       real_https_port: Optional[int] = None) -> str:
+    """Build the upstream URL that nginx should ``proxy_pass`` to.
+
+    When the application deploys its own nginx sidecar (detected by the
+    presence of *real_https_port* from Docker discovery), the platform nginx
+    should proxy through that sidecar using HTTPS. This preserves the app's
+    internal routing (e.g. ``/api/ → backend``, ``/ → frontend``) and avoids
+    bypassing it to hit a raw backend container on a secondary port.
+
+    Fallback order:
+      1. ``https://host:<real_https_port>`` — sidecar HTTPS (preferred)
+      2. ``http://host:<real_http_port>``   — direct HTTP backend
+      3. Derived from the stored DB URL via ``to_http_upstream_url()``
+    """
+    host = _host_from_url(user_appli_url)
+    if real_https_port and host:
+        return f"https://{host}:{real_https_port}"
+    if real_http_port and host:
+        return f"http://{host}:{real_http_port}"
+    return to_http_upstream_url(user_appli_url)
+
+
 def generate_location_block(user_name: str, app_name: str, deployment_url: str,
-                            user_appli_url: str, real_http_port: Optional[int] = None) -> str:
+                            user_appli_url: str, real_http_port: Optional[int] = None,
+                            real_https_port: Optional[int] = None) -> str:
     """Generate nginx location block for user application.
 
-    ``real_http_port`` is the actual HTTP port published by the running
-    container. When given it overrides the (possibly stale) port stored in the
-    database URL so the proxy always targets the live container.
+    ``real_http_port`` / ``real_https_port`` are the actual ports published by
+    the running containers. When given they override the (possibly stale) port
+    stored in the database URL so the proxy always targets the live container.
+
+    Upstream selection (see :func:`build_upstream_url`): when the app ships its
+    own nginx sidecar (``real_https_port`` present) the platform proxies
+    *through* that sidecar over HTTPS so the app's internal routing is honored.
+
+    Path handling: the full location path (e.g. ``/admin/ai-shai-web-interface/``)
+    is **preserved** and forwarded to the upstream. This is achieved by using a
+    ``proxy_pass`` *without* a URI part (no trailing ``/``), so nginx passes the
+    original request URI unchanged instead of stripping the location prefix.
     """
     location_path = f"/{user_name}/{app_name}/"
 
-    # nginx must proxy to the HTTP endpoint (HTTP scheme + HTTP port, the first
-    # port of the pair). Prefer the real running port; fall back to the URL.
-    user_appli_url = build_http_upstream(user_appli_url, real_http_port)
+    # Resolve the upstream. Prefer the real running sidecar (HTTPS); fall back
+    # to the HTTP backend, then to the port encoded in the stored URL.
+    upstream_url = build_upstream_url(user_appli_url, real_http_port, real_https_port)
+    # Normalise: strip any trailing slash so proxy_pass has NO URI part and the
+    # original request path (including the /{user}/{app}/ prefix) is preserved.
+    upstream_url = upstream_url.rstrip('/')
 
     return f"""
     # Dynamic location for user {user_name} - {app_name}
     location {location_path} {{
-        proxy_pass {user_appli_url}/;
+        proxy_pass {upstream_url};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
+        # Upstream may use a self-signed certificate (app nginx sidecar).
+        proxy_ssl_verify off;
+        proxy_ssl_server_name on;
+
         # Redirect rewriting to preserve context path
-        proxy_redirect {user_appli_url}/ {location_path};
+        proxy_redirect {upstream_url}/ {location_path};
         proxy_redirect / {location_path};
 
         # WebSocket support
@@ -432,9 +476,11 @@ def insert_location_block(user_name: str, app_name: str, deployment_url: str, us
         # Use the real running container port when available.
         ports = discover_running_ports().get((user_name, app_name), {})
         real_http_port = ports.get('http')
+        real_https_port = ports.get('https')
 
         location_block = generate_location_block(
-            user_name, app_name, deployment_url, user_appli_url, real_http_port
+            user_name, app_name, deployment_url, user_appli_url,
+            real_http_port, real_https_port
         )
 
         # Remove existing location block for this user/app if it exists.
@@ -573,7 +619,8 @@ def sync_all_locations(db_manager) -> bool:
             real_https_port = ports.get('https')
 
             location_blocks.append(
-                generate_location_block(user_name, app_name, url, url, real_http_port)
+                generate_location_block(user_name, app_name, url, url,
+                                        real_http_port, real_https_port)
             )
 
             # If the running container's port differs from what the DB stores,

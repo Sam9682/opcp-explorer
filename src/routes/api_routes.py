@@ -470,6 +470,34 @@ def api_users():
         logger.error(f"Warning: Failed to GET/POST user {user_id} in DB: {str(e)}")
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
+@api_bp.route('/users/id', methods=['GET'])
+def api_user_id_by_username():
+    """Retrieve a user ID based on username.
+
+    Usage: GET /api/users/id?username=<username>
+
+    This is a public endpoint: unlike the other /api routes it does NOT
+    require Bearer authentication.
+    """
+    username = request.args.get('username')
+
+    if not username:
+        return jsonify({'error': 'username query parameter required'}), 400
+
+    try:
+        result = db_manager.execute_query(
+            'SELECT id FROM users WHERE username = %s',
+            (username,), fetch_one=True
+        )
+
+        if not result:
+            return jsonify({'error': 'User not found'}), 404
+
+        return jsonify({'id': result[0], 'username': username})
+    except Exception as e:
+        logger.error(f"Error retrieving user id for username '{username}': {str(e)}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+
 @api_bp.route('/users/<int:user_id>', methods=['PUT', 'DELETE'])
 def api_user_actions(user_id):
     if 'user_id' not in session:
