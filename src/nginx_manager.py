@@ -106,23 +106,35 @@ def discover_running_ports() -> Dict[Tuple[str, str], Dict[str, int]]:
 def _component_from_name(name: str) -> Optional[str]:
     """Return the docker-compose service component from a container name.
 
-    Names look like ``<app>-nginx-1-6136`` or ``<app>-app-25-8525``. We look
-    for the ``-nginx-`` / ``-app-`` component marker.
+    Names follow the platform convention and may use any of these component
+    markers depending on the deploy template:
+
+      * frontend / nginx sidecar (serves HTTPS on container 443):
+        ``-nginx-``, ``-frontend-component-`` or the shorter ``-frontend-``
+        e.g. ``<app>-nginx-1-6136`` or ``<app>-frontend-30-9048``
+      * backend / app (serves plain HTTP the platform proxies to):
+        ``-app-``, ``-backend-component-`` or the shorter ``-backend-``
+        e.g. ``<app>-app-25-8525`` or ``<app>-backend-component-30-9049``
+
+    The explicit ``*-component`` logical labels are checked first, then the
+    short container-name markers. Backend is checked before frontend so a name
+    containing ``backend`` is never misclassified as a frontend.
     """
     if not name:
         return None
+    # Logical component labels (explicit).
     if FRONTEND_COMPONENT in name:
         return FRONTEND_COMPONENT
     if BACKEND_COMPONENT in name:
         return BACKEND_COMPONENT
-    if '-nginx-' in name:
-        return FRONTEND_COMPONENT
-    if '-app-' in name:
+    # Backend container-name markers (checked before frontend markers).
+    if '-app-' in name or '-backend-' in name:
         return BACKEND_COMPONENT
+    # Frontend / nginx sidecar container-name markers.
+    if '-nginx-' in name or '-frontend-' in name:
+        return FRONTEND_COMPONENT
     if '-postgres-' in name:
         return 'postgres'
-    if FRONTEND_COMPONENT in name:
-        return 'frontend'
     return None
 
 
@@ -324,24 +336,25 @@ def generate_location_block(user_name: str, app_name: str, deployment_url: str,
     own nginx sidecar (``real_https_port`` present) the platform proxies
     *through* that sidecar over HTTPS so the app's internal routing is honored.
 
-    Path handling: the full location path (e.g. ``/admin/ai-shai-web-interface/``)
-    is **preserved** and forwarded to the upstream. This is achieved by using a
-    ``proxy_pass`` *without* a URI part (no trailing ``/``), so nginx passes the
-    original request URI unchanged instead of stripping the location prefix.
+    Path handling: the ``proxy_pass`` directive includes a URI part (a trailing
+    ``/``), so nginx replaces the matched location prefix
+    (e.g. ``/admin/ai-shai-web-interface/``) with ``/`` before forwarding to the
+    upstream. The ``proxy_redirect`` and ``sub_filter`` rules below re-add the
+    location prefix so redirects and absolute asset paths stay correct.
     """
     location_path = f"/{user_name}/{app_name}/"
 
     # Resolve the upstream. Prefer the real running sidecar (HTTPS); fall back
     # to the HTTP backend, then to the port encoded in the stored URL.
     upstream_url = build_upstream_url(user_appli_url, real_http_port, real_https_port)
-    # Normalise: strip any trailing slash so proxy_pass has NO URI part and the
-    # original request path (including the /{user}/{app}/ prefix) is preserved.
+    # Normalise: strip any trailing slash so the generated proxy_pass ends in a
+    # single trailing ``/`` (the URI part), i.e. ``http://host:port/``.
     upstream_url = upstream_url.rstrip('/')
 
     return f"""
     # Dynamic location for user {user_name} - {app_name}
     location {location_path} {{
-        proxy_pass {upstream_url};
+        proxy_pass {upstream_url}/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
