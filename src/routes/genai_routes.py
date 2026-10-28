@@ -353,8 +353,8 @@ def api_request_dev_ai_for_app():
                     yield f"data: {json.dumps({'error': f'{agentic_engine} not found for SHAI '})}\n\n"
                     return
 
-                # Use shai engine (placeholder for future implementation)
-                cmd_args = [agentic_engine, 'chat', '--trust-all-tools', l_prompt]
+                # Use shai engine in headless mode (shai 0.2.2: `shai -p "<prompt>"`)
+                cmd_args = [engine_cmd, '-p', l_prompt]
 
             else:
                 # Default to qchat
@@ -587,8 +587,8 @@ User Question: {message}. Provide a helpful and informative response."""
                     yield f"data: {json.dumps({'error': f'{agentic_engine} not found for SHAI '})}\n\n"
                     return
 
-                # Use shai engine (placeholder for future implementation)
-                cmd_args = [agentic_engine, 'chat', '--trust-all-tools', l_prompt]
+                # Use shai engine in headless mode (shai 0.2.2: `shai -p "<prompt>"`)
+                cmd_args = [engine_cmd, '-p', l_prompt]
 
             else:
                 # Default to qchat
