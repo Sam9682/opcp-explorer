@@ -19,6 +19,8 @@ ENV/
 *.swp
 *.swo
 *~
+.kiro/
+.shai/
 
 # Pytest
 .pytest_cache/
