@@ -1609,6 +1609,13 @@ start_flask_application() {
     # Initialize database if PostgreSQL is enabled
     if [ "${USE_POSTGRES:-true}" = "true" ]; then
         echo "  💾 Initializing PostgreSQL database..."
+        # Load credentials from .env so the defaults below don't override them
+        if [ -f ".env" ]; then
+            set -a
+            # shellcheck disable=SC1091
+            . ./.env
+            set +a
+        fi
         export POSTGRES_HOST=${POSTGRES_HOST:-localhost}
         export POSTGRES_DB=${POSTGRES_DB:-ai_swautomorph}
         export POSTGRES_USER=${POSTGRES_USER:-swautomorph}
@@ -2354,4 +2361,4 @@ main() {
 }
 
 # Execute main function
-main "$@"
+main "$@
