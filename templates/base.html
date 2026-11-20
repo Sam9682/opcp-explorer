@@ -21,7 +21,7 @@
                         <a href="javascript:void(0)" onclick="showTab('sandbox')" id="navSandbox">🧪 {{ get_text('sandbox') }}</a>
                         <a href="javascript:void(0)" onclick="showTab('billing')" id="navBilling">{{ get_text('billing') }}</a>
                         <a href="javascript:void(0)" onclick="showTab('security')" id="navSecurity">🔐</a>
-                        {% if username == 'admin' %}
+                        {% if is_admin %}
                         <div class="nav-dropdown">
                             <a href="javascript:void(0)" class="nav-dropdown-btn" onclick="toggleNavDropdown('config')">{{ get_text('configuration') }} ▼</a>
                             <div class="nav-dropdown-content" id="navConfigDropdown">
@@ -84,7 +84,7 @@
                     <a href="javascript:void(0)" onclick="showTab('sandbox')">🧪 {{ get_text('sandbox') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('billing')">{{ get_text('billing') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('security')">🔐 {{ get_text('account_security') }}</a>
-                    {% if username == 'admin' %}
+                    {% if is_admin %}
                     <a href="javascript:void(0)" onclick="showTab('users')">👥 {{ get_text('user_management') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('servers')">🖥️ {{ get_text('server_management') }}</a>
                     <a href="javascript:void(0)" onclick="showTab('appManagement')">📱 {{ get_text('applications_management') }}</a>

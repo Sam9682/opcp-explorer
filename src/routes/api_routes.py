@@ -1,5 +1,6 @@
 """API routes"""
 from flask import Blueprint, request, jsonify, session, Response, stream_with_context
+from ..admin_auth import ADMIN_CHECK_QUERY, ADMIN_ACCOUNT_TYPE, SUPER_ADMIN_USERNAME, get_admin_flags
 from werkzeug.security import generate_password_hash
 # import sqlite3  # COMMENTED OUT - Using PostgreSQL now
 import os
@@ -152,7 +153,7 @@ def database_health():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -196,7 +197,7 @@ def api_applications():
         
         # Check if user is admin
         user = db_manager.execute_query(
-            'SELECT username FROM users WHERE id = %s', 
+            ADMIN_CHECK_QUERY, 
             (session['user_id'],), fetch_one=True
         )
         
@@ -237,7 +238,7 @@ def api_applications_pdf_data():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
 
@@ -312,7 +313,7 @@ def api_application_actions(app_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -405,7 +406,7 @@ def api_users():
     try:
         # Check if user is admin
         user = db_manager.execute_query(
-            'SELECT username FROM users WHERE id = %s', 
+            ADMIN_CHECK_QUERY, 
             (session['user_id'],), fetch_one=True
         )
         
@@ -415,7 +416,7 @@ def api_users():
         if request.method == 'GET':
             # Get all users
             users_data = db_manager.execute_query(
-                'SELECT id, username, email, first_name, last_name, suspended, created_at, totp_enabled, twofa_email_enabled FROM users ORDER BY username',
+                'SELECT id, username, email, first_name, last_name, suspended, created_at, totp_enabled, twofa_email_enabled, account_type FROM users ORDER BY username',
                 fetch_all=True
             )
             users = [{
@@ -427,7 +428,9 @@ def api_users():
                 'suspended': bool(row[5]),
                 'created_at': row[6],
                 'totp_enabled': bool(row[7]) if len(row) > 7 and row[7] is not None else False,
-                'email_2fa_enabled': bool(row[8]) if len(row) > 8 and row[8] is not None else False
+                'email_2fa_enabled': bool(row[8]) if len(row) > 8 and row[8] is not None else False,
+                'account_type': row[9],
+                'is_admin': row[1] == SUPER_ADMIN_USERNAME or row[9] == ADMIN_ACCOUNT_TYPE
             } for row in users_data]
             return jsonify(users)
         
@@ -506,13 +509,19 @@ def api_user_actions(user_id):
     try:
         # Check if user is admin
         user = db_manager.execute_query(
-            'SELECT username FROM users WHERE id = %s', 
+            ADMIN_CHECK_QUERY, 
             (session['user_id'],), fetch_one=True
         )
         
         if not user or user[0] != 'admin':
             return jsonify({'error': 'Admin access required'}), 403
-    
+
+        # Only the built-in admin may modify or delete the built-in admin account
+        target_username, _, target_is_super = get_admin_flags(db_manager, user_id)
+        _, _, requester_is_super = get_admin_flags(db_manager, session['user_id'])
+        if target_is_super and not requester_is_super:
+            return jsonify({'error': f"Only '{SUPER_ADMIN_USERNAME}' can modify this account"}), 403
+
         if request.method == 'PUT':
             data = request.get_json()
             action = data.get('action')
@@ -549,6 +558,49 @@ def api_user_actions(user_id):
         logger.error(f"Warning: Failed to PUT/DELETE user {user_id}: {str(e)}")
         return jsonify({'error': f'Database error: {str(e)}'}), 500
 
+@api_bp.route('/users/<int:user_id>/admin', methods=['POST'])
+def api_user_admin_role(user_id):
+    """Grant or revoke admin rights (users.account_type = 'ADMIN').
+
+    Only the built-in 'admin' user may call this endpoint.
+    Body: {"admin": true|false}
+    """
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    _, _, requester_is_super = get_admin_flags(db_manager, session['user_id'])
+    if not requester_is_super:
+        return jsonify({'error': f"Only '{SUPER_ADMIN_USERNAME}' can change admin rights"}), 403
+
+    data = request.get_json(silent=True) or {}
+    grant = bool(data.get('admin', True))
+
+    target = db_manager.execute_query(
+        'SELECT username, account_type FROM users WHERE id = %s', (user_id,), fetch_one=True
+    )
+    if not target:
+        return jsonify({'error': 'User not found'}), 404
+    target_username, target_account_type = target[0], target[1]
+
+    if target_username == SUPER_ADMIN_USERNAME:
+        return jsonify({'error': f"'{SUPER_ADMIN_USERNAME}' is always an admin"}), 400
+    # Do not overwrite other account types (e.g. the sandbox demo user)
+    if target_account_type and target_account_type != ADMIN_ACCOUNT_TYPE:
+        return jsonify({'error': f"Cannot change admin rights of a '{target_account_type}' account"}), 400
+
+    db_manager.execute_query(
+        'UPDATE users SET account_type = %s WHERE id = %s',
+        (ADMIN_ACCOUNT_TYPE if grant else None, user_id)
+    )
+    db_manager.execute_query(
+        'INSERT INTO users_logs (user_id, username, action) VALUES (%s, %s, %s)',
+        (user_id, target_username, 'admin_granted' if grant else 'admin_revoked')
+    )
+    logger.info(f"[ADMIN_ROLE] {'Granted' if grant else 'Revoked'} admin rights for user {target_username} (id={user_id})")
+    return jsonify({'message': f"Admin rights {'granted to' if grant else 'revoked from'} {target_username}",
+                    'is_admin': grant})
+
+
 @api_bp.route('/users/<int:user_id>/applications', methods=['GET', 'POST', 'DELETE'])
 def api_user_applications(user_id):
     if 'user_id' not in session:
@@ -556,7 +608,7 @@ def api_user_applications(user_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -675,7 +727,7 @@ def api_database_table(table_name):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -835,7 +887,7 @@ def api_servers_discover():
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -867,7 +919,7 @@ def api_servers_add_remote():
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -937,7 +989,7 @@ def api_servers():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1023,7 +1075,7 @@ def api_server_actions(server_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1078,7 +1130,7 @@ def api_server_promote(server_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1112,7 +1164,7 @@ def api_server_promote_secondary(server_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1135,7 +1187,7 @@ def api_server_sync(server_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1249,7 +1301,7 @@ def api_database_record(table_name, record_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1624,7 +1676,7 @@ def api_deployments():
         # If target_user_id is provided, verify admin privileges
         if target_user_id:
             admin_user = db_manager.execute_query(
-                'SELECT username FROM users WHERE id = %s', 
+                ADMIN_CHECK_QUERY, 
                 (session['user_id'],), fetch_one=True
             )
             if not admin_user or admin_user[0] != 'admin':
@@ -1722,7 +1774,7 @@ def api_nginx_sync():
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1744,7 +1796,7 @@ def api_replication_queue():
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1776,7 +1828,7 @@ def api_configuration():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1831,7 +1883,7 @@ def api_configuration_actions(param_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1880,7 +1932,7 @@ def api_deployments_all():
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1920,7 +1972,7 @@ def api_deployment_delete(deployment_id):
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -1962,7 +2014,7 @@ def api_nginx_update_deployment():
         return jsonify({'error': 'Authentication required'}), 401
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     
@@ -2076,7 +2128,7 @@ def api_deployment_add_backup(deployment_id):
             return jsonify({'error': 'Deployment not found'}), 404
         
         user = db_manager.execute_query(
-            'SELECT username FROM users WHERE id = %s',
+            ADMIN_CHECK_QUERY,
             (session['user_id'],), fetch_one=True
         )
         
@@ -2132,7 +2184,7 @@ def api_deployment_get_backups(deployment_id):
             return jsonify({'error': 'Deployment not found'}), 404
         
         user = db_manager.execute_query(
-            'SELECT username FROM users WHERE id = %s',
+            ADMIN_CHECK_QUERY,
             (session['user_id'],), fetch_one=True
         )
         

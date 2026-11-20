@@ -4,6 +4,7 @@ import os
 
 # Use PostgreSQL by default
 from ..database_postgres import db_manager
+from ..admin_auth import get_admin_flags
 from ..config_postgres import DOMAIN, PLTF_NAME, APP_VERSION
 
 main_bp = Blueprint('main', __name__)
@@ -44,12 +45,8 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('main.index'))
     
-    # Get username for admin check
-    user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
-        (session['user_id'],), fetch_one=True
-    )
-    username = user[0] if user else ''
+    # Get username and admin rights (username 'admin' or account_type 'ADMIN')
+    username, is_admin, is_super_admin = get_admin_flags(db_manager, session['user_id'])
     
     # Get applications based on user role with swautomorph_url from deployments
     applications_raw = db_manager.execute_query('''SELECT a.id, a.name, ua.url, a.description, a.git_url, a.git_local_url, a.git_repo_size, 
@@ -75,7 +72,7 @@ def dashboard():
     # Get SSO token for the user
     sso_token = session.get('sso_token', '')
     
-    return render_template('dashboard.html', applications=applications, username=username, sso_token=sso_token, user_id=session['user_id'], DOMAIN=DOMAIN, PLTF_NAME=PLTF_NAME, APP_VERSION=APP_VERSION)
+    return render_template('dashboard.html', applications=applications, username=username, is_admin=is_admin, is_super_admin=is_super_admin, sso_token=sso_token, user_id=session['user_id'], DOMAIN=DOMAIN, PLTF_NAME=PLTF_NAME, APP_VERSION=APP_VERSION)
 
 @main_bp.route('/set_language/<language>')
 def set_language(language):

@@ -5,6 +5,7 @@ import random
 import string
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, session, render_template, redirect, url_for
+from ..admin_auth import ADMIN_CHECK_QUERY
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import logging
@@ -55,14 +56,14 @@ def request_password_reset():
     if 'user_id' in session:
         # Logged-in user
         requesting_user = db_manager.execute_query(
-            'SELECT id, username FROM users WHERE id = %s',
+            'SELECT id, username, account_type FROM users WHERE id = %s',
             (session['user_id'],), fetch_one=True
         )
-        
+
         if not requesting_user:
             return jsonify({'error': 'Authentication required'}), 401
-        
-        is_admin = requesting_user[1] == 'admin'
+
+        is_admin = requesting_user[1] == 'admin' or requesting_user[2] == 'ADMIN'
         
         # If no target specified, reset own password
         if not target_user_id:
@@ -360,7 +361,7 @@ def disable_2fa():
     
     # Check permissions
     requesting_user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s',
+        ADMIN_CHECK_QUERY,
         (session['user_id'],), fetch_one=True
     )
     
@@ -588,7 +589,7 @@ def get_2fa_admin_status(user_id):
     
     # Check admin
     admin_check = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s',
+        ADMIN_CHECK_QUERY,
         (session['user_id'],), fetch_one=True
     )
     if not admin_check or admin_check[0] != 'admin':

@@ -1,5 +1,6 @@
 """API routes for App Orchestrator"""
 from flask import Blueprint, request, jsonify, session
+from ..admin_auth import ADMIN_CHECK_QUERY
 from ..database_postgres import db_manager
 import json
 import subprocess
@@ -45,7 +46,7 @@ def require_admin():
         return False
     
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = ?', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     

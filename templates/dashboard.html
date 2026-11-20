@@ -11,7 +11,7 @@
     <div id="appsSection" class="tab-content">
         <div class="section-header">
             <h2>{{ get_text('used_applications') }}</h2>
-            {% if username == 'admin' %}
+            {% if is_admin %}
             <button class="btn btn-primary" onclick="showAddAppForm()">{{ get_text('add_new_application') }}</button>
             {% endif %}
         </div>
@@ -60,7 +60,7 @@
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'backup_database')" class="btn btn-secondary btn-small" id="backupDbBtn-{{ app[1] | replace(' ', '-') | lower }}" style="display: none;" title="{{ get_text('backup_db') }}">💾</button>
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'restore_database')" class="btn btn-secondary btn-small" id="restoreDbBtn-{{ app[1] | replace(' ', '-') | lower }}" style="display: none;" title="{{ get_text('restore_db') }}">♻️</button>
                             {% endif %}
-                            {% if username == 'admin' %}
+                            {% if is_admin %}
                             <button onclick="editApp({{ app[0] }}, '{{ app[1] }}', '{{ app[2] }}', '{{ app[3] or '' }}', '{{ app[4] or '' }}', {{ app[6] or 50 }}, {{ app[7] or 'null' }}, {{ app[8] or 'null' }}, {{ app[9] or 'null' }}, {{ app[10] or 'null' }}, '{{ app[11] or 'Not yet deployed' }}')" class="btn btn-secondary btn-small" title="Edit">✏️</button>
                             <button onclick="deleteApp({{ app[0] }}, '{{ app[1] }}')" class="btn btn-danger btn-small" title="Delete">🗑️</button>
                             {% else %}
@@ -82,7 +82,7 @@
     {% endif %}
     
     <!-- Available Applications Section (for non-admin users) -->
-    {% if username != 'admin' %}
+    {% if not is_admin %}
     <div class="section-header" style="margin-top: 40px;">
         <h2>{{ get_text('available_applications') }}</h2>
         <p style="font-size: 14px; color: #666; margin-top: 5px;">Applications that can be requested from your administrator</p>
@@ -97,7 +97,7 @@
     </div>
     {% endif %}
     
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="addAppSection" class="add-app-section" style="display: none;">
         <h3>{{ get_text('add_new_application') }}</h3>
         <form id="addAppForm" class="add-app-form">
@@ -234,7 +234,7 @@
         <div class="billing-submenu" style="margin-bottom: 20px;">
             <button class="btn btn-secondary" onclick="showBillingTab('overview')" id="billingOverviewBtn">{{ get_text('overview') }}</button>
             <button class="btn btn-secondary" onclick="showBillingTab('invoices')" id="billingInvoicesBtn">{{ get_text('invoices') }}</button>
-            {% if username == 'admin' %}
+            {% if is_admin %}
             <button class="btn btn-secondary" onclick="showBillingTab('costs')" id="billingCostsBtn">{{ get_text('manage_costs') }}</button>
             {% endif %}
         </div>
@@ -252,7 +252,7 @@
                         <option value="previous_month">Previous Month</option>
                     </select>
                 </div>
-                {% if username == 'admin' %}
+                {% if is_admin %}
                 <div class="user-selector">
                     <label>User:</label>
                     <select id="billingUser" onchange="loadBillingData()">
@@ -279,7 +279,7 @@
         <div id="billingInvoicesTab" class="billing-tab-content" style="display: none;">
             <h3>{{ get_text('invoices') }}</h3>
             
-            {% if username == 'admin' %}
+            {% if is_admin %}
             <!-- Invoice Generation -->
             <div class="invoice-generation" style="margin-bottom: 20px;">
                 <h4>Generate New Invoice</h4>
@@ -302,7 +302,7 @@
             </div>
         </div>
         
-        {% if username == 'admin' %}
+        {% if is_admin %}
         <!-- Cost Management Tab -->
         <div id="billingCostsTab" class="billing-tab-content" style="display: none;">
             <h3>{{ get_text('application_costs') }}</h3>
@@ -378,7 +378,7 @@
         </div>
     </div>
     
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="usersSection" class="tab-content" style="display: none;">
         <h2>{{ get_text('users') }}</h2>
         <button class="btn btn-primary" onclick="showAddUserForm()">{{ get_text('add_user') }}</button>
@@ -431,7 +431,7 @@
     {% endif %}
     
     <!-- Application Management Section -->
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="appManagementSection" class="tab-content" style="display: none;">
         <div class="section-header">
             <h2>📱 {{ get_text('applications_management') }}</h2>
@@ -539,7 +539,7 @@
     {% endif %}
     
     <!-- Servers Section -->
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="serversSection" class="tab-content" style="display: none;">
         <div class="section-header">
             <h2>{{ get_text('server_management') }}</h2>
@@ -604,7 +604,7 @@
     {% endif %}
     
     <!-- App Orchestrator Section -->
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="orchestratorSection" class="tab-content" style="display: none;">
         <div class="section-header">
             <h2>🎯 {{ get_text('orchestrator') }}</h2>
@@ -690,7 +690,7 @@
     {% endif %}
     
     <!-- Deployments Section -->
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="deploymentsSection" class="tab-content" style="display: none;">
         <h2>Deployments Management</h2>
         
@@ -728,7 +728,7 @@
     {% endif %}
     
     <!-- Database Section -->
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="databaseSection" class="tab-content" style="display: none;">
         <h2>{{ get_text('database_management') }}</h2>
         
@@ -777,7 +777,7 @@
     {% endif %}
     
     <!-- Settings Section -->
-    {% if username == 'admin' %}
+    {% if is_admin %}
     <div id="settingsSection" class="tab-content" style="display: none;">
         <h2>⚙️ Settings</h2>
 
@@ -1266,6 +1266,31 @@ function showTab(tab) {
     }
 }
 
+// Admin rights of the current user: 'admin' username or account_type 'ADMIN'
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+// Only the built-in 'admin' user can grant/revoke admin rights
+const IS_SUPER_ADMIN = {{ 'true' if is_super_admin else 'false' }};
+
+function toggleAdminRole(userId, username, grant) {
+    const msg = grant
+        ? `Grant ADMIN rights to ${username}? This user will get all administrator rights.`
+        : `Revoke ADMIN rights from ${username}?`;
+    if (!confirm(msg)) return;
+    fetch(`/api/users/${userId}/admin`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({admin: grant})
+    })
+    .then(response => response.json().then(data => ({ok: response.ok, data})))
+    .then(({ok, data}) => {
+        if (!ok) {
+            alert(data.error || 'Failed to change admin rights');
+        }
+        loadUsers();
+    })
+    .catch(() => alert('Failed to change admin rights'));
+}
+
 function loadUsers() {
     fetch('/api/users')
         .then(response => response.json())
@@ -1283,7 +1308,7 @@ function loadUsers() {
                 const twofa = user.totp_enabled ? '🔒 TOTP' : (user.email_2fa_enabled ? '📧 Email' : '❌ Off');
                 html += `<tr style="${user.suspended ? 'background-color: #f8d7da;' : ''}">
                     <td>${user.id}</td>
-                    <td>${user.username}</td>
+                    <td>${user.username}${user.is_admin ? ' <span title="Administrator" style="background:#c0392b;color:white;border-radius:3px;padding:1px 5px;font-size:11px;">ADMIN</span>' : ''}</td>
                     <td>${user.email}</td>
                     <td>${user.first_name || ''}</td>
                     <td>${user.last_name || ''}</td>
@@ -1296,6 +1321,9 @@ function loadUsers() {
                         <button onclick="resetUserPassword(${user.id}, '${user.username}', '${user.email}')" class="btn-small" style="background:#e67e22;color:white;">Reset Password</button>
                         <button onclick="${user.suspended ? 'unsuspendUser' : 'suspendUser'}(${user.id})" class="btn-small">${user.suspended ? 'Unsuspend' : 'Suspend'}</button>
                         ${(user.totp_enabled || user.email_2fa_enabled) ? `<button onclick="adminDisable2FA(${user.id}, '${user.username}')" class="btn-small" style="background:#8e44ad;color:white;">Disable 2FA</button>` : ''}
+                        ${(IS_SUPER_ADMIN && user.username !== 'admin' && (!user.account_type || user.account_type === 'ADMIN'))
+                            ? `<button onclick="toggleAdminRole(${user.id}, '${user.username}', ${!user.is_admin})" class="btn-small" style="background:#c0392b;color:white;" title="${user.is_admin ? 'Revoke administrator rights' : 'Grant administrator rights'}">${user.is_admin ? 'Revoke ADMIN' : 'ADMIN'}</button>`
+                            : ''}
                         <button onclick="deleteUser(${user.id})" class="btn-small btn-danger">Delete</button>
                     </td>
                 </tr>`;
@@ -2409,8 +2437,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadAllGiteaInfo();
     
     // Load available applications for non-admin users
-    const username = '{{ username }}';
-    if (username !== 'admin') {
+    if (!IS_ADMIN) {
         loadAvailableApplications();
     }
 });

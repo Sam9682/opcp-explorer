@@ -1,5 +1,6 @@
 """Billing management routes"""
 from flask import Blueprint, request, jsonify, session
+from ..admin_auth import ADMIN_CHECK_QUERY
 # import sqlite3  # COMMENTED OUT - Using PostgreSQL now
 import logging
 import os
@@ -57,7 +58,7 @@ def get_billing_activities():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     is_admin = user and user[0] == 'admin'
@@ -169,7 +170,7 @@ def get_billing_summary():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     is_admin = user and user[0] == 'admin'
@@ -273,7 +274,7 @@ def get_application_costs():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     if not user or user[0] != 'admin':
@@ -302,7 +303,7 @@ def update_application_cost(app_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     if not user or user[0] != 'admin':
@@ -339,7 +340,7 @@ def get_invoices():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (user_id,), fetch_one=True
     )
     is_admin = user and user[0] == 'admin'
@@ -383,7 +384,7 @@ def get_billing_users():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     if not user or user[0] != 'admin':
@@ -406,7 +407,7 @@ def get_available_months():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     is_admin = user and user[0] == 'admin'
@@ -449,7 +450,7 @@ def generate_invoice():
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s', 
+        ADMIN_CHECK_QUERY, 
         (session['user_id'],), fetch_one=True
     )
     if not user or user[0] != 'admin':
@@ -539,7 +540,7 @@ def generate_invoice_pdf(invoice_id):
         FROM invoicing i
         JOIN users u ON i.user_id = u.id
         LEFT JOIN payment_modes pm ON i.payment_mode_id = pm.id
-        WHERE i.id = %s AND (i.user_id = %s OR %s IN (SELECT id FROM users WHERE username = 'admin'))
+        WHERE i.id = %s AND (i.user_id = %s OR %s IN (SELECT id FROM users WHERE username = 'admin' OR account_type = 'ADMIN'))
     ''', (invoice_id, user_id, user_id), fetch_one=True)
     
     if not invoice:
@@ -642,7 +643,7 @@ def mark_invoice_paid(invoice_id):
     
     # Check if user is admin
     user = db_manager.execute_query(
-        'SELECT username FROM users WHERE id = %s',
+        ADMIN_CHECK_QUERY,
         (user_id,), fetch_one=True
     )
     is_admin = user and user[0] == 'admin'
