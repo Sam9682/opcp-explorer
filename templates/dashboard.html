@@ -52,7 +52,6 @@
                             <a href="{{ app[2] }}" target="_blank" class="btn btn-primary btn-small" id="openBtn-{{ app[1] | replace(' ', '-') | lower }}">🔗 {{ get_text('open_application') }}</a>
                             {% if app[4] %}
                             <button onclick="cloneFromSelectedBranch('{{ app[1] }}', {{ app[6] or 50 }})" class="btn btn-secondary btn-small" id="cloneBtn-{{ app[1] | replace(' ', '-') | lower }}">📥 {{ get_text('clone') }}</button>
-                            {% if username == 'admin' %}
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'start', null, {{ app[7] or 30 }})" class="btn btn-success btn-small" id="startBtn-{{ app[1] | replace(' ', '-') | lower }}">▶️ {{ get_text('start') }}</button>
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'stop', null, null, {{ app[9] or 10 }})" class="btn btn-danger btn-small" id="stopBtn-{{ app[1] | replace(' ', '-') | lower }}">⏹️ {{ get_text('stop') }}</button>
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'restart')" class="btn btn-warning btn-small" id="restartBtn-{{ app[1] | replace(' ', '-') | lower }}">🔄 {{ get_text('restart') }}</button>
@@ -60,7 +59,6 @@
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'logs')" class="btn btn-secondary btn-small" id="logsBtn-{{ app[1] | replace(' ', '-') | lower }}" title="{{ get_text('logs') }}">📋</button>
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'backup_database')" class="btn btn-secondary btn-small" id="backupDbBtn-{{ app[1] | replace(' ', '-') | lower }}" style="display: none;" title="{{ get_text('backup_db') }}">💾</button>
                             <button onclick="deploy_sh_executionCmdInApp('{{ app[1] }}', '', 'restore_database')" class="btn btn-secondary btn-small" id="restoreDbBtn-{{ app[1] | replace(' ', '-') | lower }}" style="display: none;" title="{{ get_text('restore_db') }}">♻️</button>
-                            {% endif %}
                             {% endif %}
                             {% if username == 'admin' %}
                             <button onclick="editApp({{ app[0] }}, '{{ app[1] }}', '{{ app[2] }}', '{{ app[3] or '' }}', '{{ app[4] or '' }}', {{ app[6] or 50 }}, {{ app[7] or 'null' }}, {{ app[8] or 'null' }}, {{ app[9] or 'null' }}, {{ app[10] or 'null' }}, '{{ app[11] or 'Not yet deployed' }}')" class="btn btn-secondary btn-small" title="Edit">✏️</button>
