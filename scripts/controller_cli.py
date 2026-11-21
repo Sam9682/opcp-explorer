@@ -14,7 +14,7 @@ sys.path.insert(0, ROOT_DIR)
 from dotenv import load_dotenv
 load_dotenv(os.path.join(ROOT_DIR, '.env'))
 
-BASE_URL = 'http://www.swautomorph.com:80'
+BASE_URL = 'http://www.opcp-psmc.com'
 
 def select_from_list(items, title="Select an option"):
     """Interactive selection using arrow keys"""
@@ -42,7 +42,7 @@ def select_from_list(items, title="Select an option"):
 
 @click.group()
 def cli():
-    """AI-SwAutoMorph CLI Tool"""
+    """OPCP-explorer CLI Tool"""
     pass
 
 @cli.command()
@@ -497,17 +497,17 @@ def platform_status():
 @cli.command()
 @click.argument('remote_ip')
 def discover_server(remote_ip):
-    """Discover remote SwAutoMorph server"""
+    """Discover remote OPCP-explorer server"""
     try:
         from src.platform_discovery import get_current_server_ip, check_remote_platform, determine_role, update_server_role
         from src.database_postgres import db_manager
 
-        click.echo(f"Checking {remote_ip} for SwAutoMorph...")
+        click.echo(f"Checking {remote_ip} for OPCP-explorer...")
 
         remote_status = check_remote_platform(remote_ip)
 
         if remote_status:
-            click.echo(f"✓ SwAutoMorph found!")
+            click.echo(f"✓ OPCP-explorer found!")
             click.echo(f"  Role: {remote_status.get('role')}")
             click.echo(f"  Version: {remote_status.get('version')}")
             click.echo(f"  Server: {remote_status.get('server_name')}")
@@ -522,7 +522,7 @@ def discover_server(remote_ip):
             update_server_role(current_ip, our_role, db_manager)
             click.echo(f"\n✓ Local server role updated to {our_role}")
         else:
-            click.echo("✗ No SwAutoMorph detected at this IP")
+            click.echo("✗ No OPCP-explorer detected at this IP")
     except Exception as e:
         click.echo(f'Error: {str(e)}')
 
@@ -766,7 +766,7 @@ def replication_test_sync(server_ip):
 
 @cli.command()
 def install_as_systemctl_service():
-    """Install SWAutomorph as systemd service"""
+    """Install OPCP-explorer as systemd service"""
     import shutil
 
     # Resolve install identity and render the unit via the shared helper so the
@@ -777,7 +777,7 @@ def install_as_systemctl_service():
     from controlplan_service import resolve_service_identity, render_controlplan_unit
 
     linux_user, pltf_folder = resolve_service_identity()
-    systemd_path = '/etc/systemd/system/swautomorph-controlplan.service'
+    systemd_path = '/etc/systemd/system/opcp-explorer-controlplan.service'
     service_content = render_controlplan_unit(linux_user, pltf_folder)
 
     try:
@@ -789,14 +789,14 @@ def install_as_systemctl_service():
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         click.echo('✓ Reloaded systemd daemon')
 
-        subprocess.run(['systemctl', 'enable', 'swautomorph-controlplan.service'], check=True)
-        click.echo('✓ Enabled swautomorph-controlplan service')
+        subprocess.run(['systemctl', 'enable', 'opcp-explorer-controlplan.service'], check=True)
+        click.echo('✓ Enabled opcp-explorer-controlplan service')
 
         click.echo('\n✅ Service installed successfully!')
         click.echo('\nUsage:')
-        click.echo('  sudo systemctl start swautomorph-controlplan')
-        click.echo('  sudo systemctl stop swautomorph-controlplan')
-        click.echo('  sudo systemctl status swautomorph-controlplan')
+        click.echo('  sudo systemctl start opcp-explorer-controlplan')
+        click.echo('  sudo systemctl stop opcp-explorer-controlplan')
+        click.echo('  sudo systemctl status opcp-explorer-controlplan')
     except subprocess.CalledProcessError as e:
         click.echo(f'✗ Error: {e}')
         sys.exit(1)
