@@ -985,5 +985,123 @@ def templates_deploy(template_id, app_name, user_id):
         sys.exit(1)
 
 
+# ---------------------------------------------------------------------------
+# Platform lifecycle commands (thin wrappers around deployControlPlan.sh)
+# ---------------------------------------------------------------------------
+
+DEPLOY_SCRIPT = os.path.join(ROOT_DIR, 'deployControlPlan.sh')
+DEPLOY_MODE = click.Choice(['locally', 'docker'])
+
+
+def _run_deploy(command, mode=None, extra_args=(), flags=()):
+    """Run deployControlPlan.sh from the repo root and exit with its status.
+
+    stdin/stdout are inherited so the script's interactive menus keep working.
+    The script reads positional args as COMMAND MODE USER_ID ...; when no mode
+    is given but later positionals are, '0' is passed (= ask interactively).
+    """
+    if not os.path.isfile(DEPLOY_SCRIPT):
+        click.echo(f'❌ Deployment script not found: {DEPLOY_SCRIPT}')
+        sys.exit(1)
+    positional = [command]
+    if mode or extra_args:
+        positional.append(mode or '0')
+    positional.extend(extra_args)
+    try:
+        rc = subprocess.call(['bash', DEPLOY_SCRIPT, *positional, *flags], cwd=ROOT_DIR)
+    except KeyboardInterrupt:
+        rc = 130
+    sys.exit(rc)
+
+
+def _mode_argument(f):
+    return click.argument('mode', type=DEPLOY_MODE, required=False)(f)
+
+
+@cli.command()
+@_mode_argument
+@click.option('--user-id', help='Admin user id (default: DEFAULT_USER_ID from conf/deploy.ini)')
+@click.option('--user-name', help='Admin user name')
+@click.option('--user-email', help='Admin user email')
+@click.option('--description', help='Admin user description')
+def start(mode, user_id, user_name, user_email, description):
+    """Deploy and start all services (Flask app, Nginx, Gitea)."""
+    # The script takes these positionally, so fill earlier gaps with its defaults.
+    values = [user_id, user_name, user_email, description]
+    last = max((i for i, v in enumerate(values) if v), default=-1)
+    extra = []
+    defaults = [os.environ.get('DEFAULT_USER_ID', '0'),
+                os.environ.get('DEFAULT_USER_NAME', 'admin'),
+                os.environ.get('DEFAULT_USER_EMAIL', 'admin@softfluid.fr'),
+                os.environ.get('DEFAULT_DESCRIPTION', 'Basic Admin user for Control Plan')]
+    for i in range(last + 1):
+        extra.append(values[i] or defaults[i])
+    _run_deploy('start', mode, extra)
+
+
+@cli.command()
+@_mode_argument
+@click.option('--app-only', is_flag=True, help='Stop only the main app web server; nginx and user apps stay up')
+@click.option('--stop-all', is_flag=True, help='Stop everything without asking the scope')
+@click.option('--keep-gitea-running', is_flag=True, help="Answer 'no' to the Gitea stop question")
+def stop(mode, app_only, stop_all, keep_gitea_running):
+    """Stop running services and clean up."""
+    if app_only and stop_all:
+        raise click.UsageError('--app-only and --stop-all are mutually exclusive')
+    flags = [name for name, on in (('--app-only', app_only),
+                                   ('--stop-all', stop_all),
+                                   ('--keep-gitea-running', keep_gitea_running)) if on]
+    _run_deploy('stop', mode, flags=flags)
+
+
+@cli.command()
+@_mode_argument
+def restart(mode):
+    """Restart all services without full redeployment."""
+    _run_deploy('restart', mode)
+
+
+@cli.command()
+def ps():
+    """Show status of Flask, Nginx, Gitea and Docker services."""
+    _run_deploy('ps')
+
+
+@cli.command()
+def logs():
+    """Show service logs."""
+    _run_deploy('logs')
+
+
+@cli.command()
+def upgrade():
+    """Upgrade the application from the git remote."""
+    _run_deploy('upgrade')
+
+
+@cli.command(name='backup-db')
+def backup_db():
+    """Back up the database."""
+    _run_deploy('backup_db')
+
+
+@cli.command(name='recover-db')
+def recover_db():
+    """Recover the database from a backup."""
+    _run_deploy('recover_db')
+
+
+@cli.command(name='migrate-db')
+def migrate_db():
+    """Run database migrations."""
+    _run_deploy('migrate_db')
+
+
+@cli.command()
+def version():
+    """Show platform version."""
+    _run_deploy('version')
+
+
 if __name__ == '__main__':
     cli()

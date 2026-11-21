@@ -262,7 +262,7 @@ check_flask_status() {
         if kill -0 "$PID" 2>/dev/null; then
             PROCESS_OWNER=$(ps -o user= -p "$PID" 2>/dev/null || echo "unknown")
             PROCESS_CMD=$(ps -o cmd= -p "$PID" 2>/dev/null | head -c 50)
-            echo -e "  $OK Flask application: Running (PID: $PID, Owner: $PROCESS_OWNER)"
+            echo -e "  $OK Flask OPCP-explorer application: Running (PID: $PID, Owner: $PROCESS_OWNER)"
             echo -e "      Command: $PROCESS_CMD..."
         else
             echo -e "  $ERROR Flask application: Not running (stale PID: $PID)"
@@ -306,7 +306,7 @@ check_flask_status() {
 
 check_nginx_status() {
     if systemctl is-active --quiet nginx; then
-        echo -e "  $OK Nginx: Running"
+        echo -e "  $OK Nginx reverse proxy: Running"
         if [ -f "${NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}/${NGINX_SITE_NAME:-${NAME_OF_APPLICATION}}" ]; then
             echo -e "  $OK $NAME_OF_APPLICATION site: Configured"
         else
