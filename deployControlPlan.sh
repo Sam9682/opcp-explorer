@@ -78,6 +78,24 @@ PLTF_FOLDER=${PLTF_FOLDER:-"agentic-ai-plateform"}
 PLTF_NAME=${PLTF_NAME:-"agentic-ai-plateform_AI_SharedGPU_Docker_Serverless"}
 LINUX_USER_INSTALLATION=${LINUX_USER_INSTALLATION:-"ubuntu"}
 
+# Option flags (may appear anywhere on the command line). They are parsed
+# first and stripped from the positional parameters so that e.g.
+# "stop --app-only" does not mistake the flag for the MODE argument.
+KEEP_GITEA_RUNNING=false
+# STOP_SCOPE: "" = ask the user, "app" = stop only the control-plane web app
+# (nginx + user application reverse proxies stay up), "all" = stop everything.
+STOP_SCOPE=""
+_POSITIONAL_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --keep-gitea-running) KEEP_GITEA_RUNNING=true ;;
+        --app-only)           STOP_SCOPE="app" ;;
+        --stop-all|--all)     STOP_SCOPE="all" ;;
+        *)                    _POSITIONAL_ARGS+=("$arg") ;;
+    esac
+done
+set -- "${_POSITIONAL_ARGS[@]}"
+
 # Global Parameters (command line args override config)
 COMMAND=${1:-help}
 LOCAL_MODE=${2:-0}
@@ -104,15 +122,6 @@ case "$LOCAL_MODE" in
         LOCAL_MODE="docker"
         ;;
 esac
-
-# Check for --keep-gitea-running parameter
-KEEP_GITEA_RUNNING=false
-for arg in "$@"; do
-    if [ "$arg" = "--keep-gitea-running" ]; then
-        KEEP_GITEA_RUNNING=true
-        break
-    fi
-done
 
 # Interactive menu for deployment mode selection using Python simple-term-menu
 show_deployment_menu() {
@@ -827,9 +836,73 @@ EOF
     echo "  💡 Pre-recovery backup saved to: $PRERECOVERY_BACKUP_DIR"
 }
 
+# Ask which stop scope to apply (unless given via --app-only / --stop-all).
+# Sets STOP_SCOPE to "app" or "all".
+confirm_stop_scope() {
+    if [ -n "$STOP_SCOPE" ]; then
+        return 0
+    fi
+
+    # Non-interactive shell: keep the historical behaviour (stop everything)
+    if [ ! -t 0 ]; then
+        echo "  ℹ️ Non-interactive shell and no --app-only/--stop-all given: stopping everything"
+        STOP_SCOPE="all"
+        return 0
+    fi
+
+    if python3 -c "from simple_term_menu import TerminalMenu" 2>/dev/null; then
+        STOP_SCOPE=$(python3 << 'EOF'
+from simple_term_menu import TerminalMenu
+
+options = [
+    "Stop only the main application web server (nginx + user applications stay reachable)",
+    "Stop everything (main application, nginx and all user application reverse proxies)",
+]
+terminal_menu = TerminalMenu(
+options,
+title="🛑 What do you want to stop?",
+menu_cursor="▶ ",
+menu_cursor_style=("fg_red", "bold"),
+menu_highlight_style=("bg_red", "fg_yellow"),
+cycle_cursor=True
+)
+
+menu_entry_index = terminal_menu.show()
+if menu_entry_index == 0:
+    print("app")
+elif menu_entry_index == 1:
+    print("all")
+else:
+    print("abort")
+EOF
+)
+    else
+        echo "What do you want to stop?"
+        echo "1) Stop only the main application web server (nginx + user applications stay reachable)"
+        echo "2) Stop everything (main application, nginx and all user application reverse proxies)"
+        read -p "Enter your choice (1-2): " choice
+        case $choice in
+            1) STOP_SCOPE="app" ;;
+            2) STOP_SCOPE="all" ;;
+            *) STOP_SCOPE="abort" ;;
+        esac
+    fi
+
+    if [ "$STOP_SCOPE" = "abort" ]; then
+        echo "  ⏹️ Stop cancelled - nothing was stopped"
+        exit 0
+    fi
+}
+
 # Stop services
 stop_services() {
-    echo "🛑 Stopping $NAME_OF_APPLICATION services..."
+    confirm_stop_scope
+
+    if [ "$STOP_SCOPE" = "app" ]; then
+        echo "🛑 Stopping $NAME_OF_APPLICATION main application only (nginx and user applications keep running)..."
+    else
+        echo "🛑 Stopping all $NAME_OF_APPLICATION services..."
+    fi
 
     # Remove backup cron job
     remove_backup_cron
@@ -843,7 +916,20 @@ stop_services() {
 
     CLEANUP_NEEDED=false
 
-    if [ "$LOCAL_MODE" = "locally" ]; then
+    if [ "$STOP_SCOPE" = "app" ]; then
+        # Only the control-plane web server: the nginx site config (which also
+        # holds the /<user>/<application> reverse-proxy locations), the nginx
+        # service and Gitea are left untouched so user apps stay reachable.
+        if [ "$LOCAL_MODE" = "locally" ]; then
+            stop_flask_service || CLEANUP_NEEDED=true
+        elif [ "$LOCAL_MODE" = "docker" ]; then
+            docker-compose stop app
+        else
+            stop_flask_service || CLEANUP_NEEDED=true
+            docker-compose stop app 2>/dev/null || true
+        fi
+        echo "  ℹ️ Nginx and user application reverse proxies are still running"
+    elif [ "$LOCAL_MODE" = "locally" ]; then
         stop_flask_service || CLEANUP_NEEDED=true
         remove_nginx_config
         stop_nginx_service
@@ -2136,8 +2222,11 @@ help() {
     echo "              • Removes Nginx site configuration"
     echo "              • Optionally stops and removes Gitea (interactive)"
     echo "              • Stops Docker containers if running"
+    echo "              • Asks whether to stop only the main application web server"
+    echo "                (nginx + user apps at https://${DOMAIN}/<user>/<application> stay up)"
+    echo "                or everything (see --app-only / --stop-all)"
     echo ""
-    echo "  restart   - Restart all services without full redeployment"
+    echo "  restart  - Restart all services without full redeployment"
     echo "  -r        - Restart all services without full redeployment (alias for restart)"
     echo "  --restart - Restart all services without full redeployment (alias for restart)"
     echo "              • Restarts Flask application with new PID"
@@ -2190,6 +2279,11 @@ help() {
     echo "OPTIONS:"
     echo "  --keep-gitea-running  - Automatically answer 'no' to Gitea stop question"
     echo "                          Keeps Gitea service running during stop operations"
+    echo "  --app-only            - stop: stop only the main application web server (Flask/Gunicorn,"
+    echo "                          or the 'app' container in docker mode). Nginx, its config with all"
+    echo "                          /<user>/<application> reverse proxies, and Gitea keep running."
+    echo "  --stop-all            - stop: stop everything (main app, nginx config + service, Gitea"
+    echo "                          prompt, docker containers). Default in non-interactive shells."
     echo ""
     echo "MODES:"
     echo "  locally   - Deploy without Docker (direct system installation)"
@@ -2226,6 +2320,8 @@ help() {
     echo "  $0 start locally 123 john    # Deploy locally for user 'john' with ID '123'"
     echo "  $0 stop                      # Stop all services (interactive Gitea removal)"
     echo "  $0 stop --keep-gitea-running # Stop all services but keep Gitea running"
+    echo "  $0 stop locally --app-only   # Stop only the main app; user apps stay reachable"
+    echo "  $0 stop locally --stop-all   # Stop everything without asking the scope"
     echo "  $0 stop locally              # Stop all services started "locally" (interactive Gitea removal)"
     echo "  $0 restart locally           # Restart local services"
     echo "  $0 upgrade                   # Upgrade application from git remote"
