@@ -1,170 +1,169 @@
-# agentic-ai-plateform — Shared GPU via Docker (Business + Technical Guide)
+# Shared GPU (NVIDIA MIG) and Container Runtime
 
-## Professional Service Labs for OCPC Customers
+NVIDIA Multi-Instance GPU (MIG) splits one data-center GPU (H100, A100, A30) into up to 7 isolated slices, each with its own compute and memory. OPCP-explorer lets an administrator enable MIG on a registered server, list the GPU's MIG profiles, create instances and destroy them, from the web UI or the REST API. This raises GPU utilisation and isolates tenants at the hardware level.
 
----
-
-## The Problem
-
-Your customers are building AI workloads. They need GPU compute, but:
-
-- Teams need to deploy Containers, Serverless or AI applications fast, without DevOps overhead
-- A single NVIDIA H100 costs **€30k+** — most workloads don't need the full card
-- GPU utilization sits at **15-30%** on average across data centers
-- Customers want isolated GPU access without managing bare-metal infrastructure
-
-
----
-
-## The Solution: agentic-ai-plateform for Baremetal Platform
-
-A turnkey platform that lets your agentic-ai-plateform customers **deploy, manage, and share GPU resources** through a single interface — Web, CLI, API, or AI agents.
-
-### One agentic-ai-plateform Platform, Four Access Modes
-
-|        Mode         |                 Use Case                        |
-|---------------------|-------------------------------------------------|
-| **Web Dashboard**   | Visual management for administrators            |
-| **REST API**        | Integration into CI/CD and automation pipelines |
-| **CLI**             | DevOps and scripting workflows                  |
-| **MCP (AI Agents)** | Autonomous deployment by GenAI agents           |
-
----
-
-## Key Features: Docker/Podman, Serverless and Shared GPU via Docker on Baremetal
-
-### NVIDIA MIG — GPU Partitioning Made Simple
-
-With Multi-Instance GPU (MIG), a single NVIDIA H100 becomes **up to 7 isolated GPU slices**, each with dedicated compute, memory, and bandwidth.
+Related docs: [SERVERLESS.md](SERVERLESS.md) · [INIT_PLATFORM.md](INIT_PLATFORM.md) · [API_REFERENCE.md](API_REFERENCE.md) · [technicals/ORCHESTRATOR.md](technicals/ORCHESTRATOR.md)
 
 ```
 ┌─────────────────────────────────────────────┐
-│           NVIDIA H100 (80 GB HBM3)          │
+│           NVIDIA H100 (80 GB)               │
 ├─────────┬─────────┬─────────┬───────────────┤
-│ 1g.10gb │ 1g.10gb │ 2g.20gb │   4g.40gb     │
-│ User A  │ User B  │ User C  │   User D      │
-│ (Docker)│ (Docker)│ (Docker)│   (Docker)    │
+│ 1g.10gb │ 1g.10gb │ 2g.20gb │   3g.40gb     │
 └─────────┴─────────┴─────────┴───────────────┘
+   each slice addressable as  --gpus "device=MIG-<uuid>"
 ```
 
-**What this means for your customers:**
+---
 
-- **Cost reduction**: Split one GPU across multiple workloads — pay for what you use
-- **Isolation**: Each Docker container gets its own GPU slice — no interference between tenants
-- **Flexibility**: Admins can reconfigure partitions in seconds via the web UI or API
-- **No downtime**: Create and destroy GPU instances on-the-fly
+## How it works
 
-### How It Works (3 Clicks)
+All MIG actions are executed on the target server over SSH by the Flask app (`src/routes/gpu_routes.py`):
 
-1. **Enable** shared GPU on a server (toggle switch)
-2. **Select** MIG profiles from available partition sizes
-3. **Create** isolated GPU instances — ready for Docker workloads
+```
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@<server_ip> '<command>'
+```
 
-Each instance is accessible via `--gpus` flag in Docker:
+The server IP comes from `servers.server_ip`. The controller therefore needs key-based SSH access as `ubuntu` to each GPU server, and `ubuntu` needs passwordless `sudo` for `nvidia-smi`. Each SSH call times out after 30 s.
+
+| Action | Command run on the server |
+|--------|---------------------------|
+| Enable shared GPU | `sudo nvidia-smi -mig 1` |
+| List profiles | `nvidia-smi mig -lgip` |
+| Create instances | `sudo nvidia-smi mig -cgi <id1>,<id2>,… -C` then `nvidia-smi -L` |
+| Destroy all instances | `sudo nvidia-smi mig -dci` then `sudo nvidia-smi mig -dgi` |
+
+Enabling MIG mode may require a GPU reset or reboot on some hardware; the platform does not do that.
+
+---
+
+## Web UI
+
+- **Dashboard → Servers**: each server row has a **Shared-GPU** button that opens `/servers/<server_id>/gpu`.
+- **`/servers/<server_id>/gpu`** (route `shared_gpu_page` in `src/routes/main_routes.py`, template `templates/shared_gpu.html`), admin only (`403 Forbidden` otherwise):
+  1. **Toggle** shared GPU (`PUT …/gpu/enabled`); enabling loads the profiles.
+  2. **Profiles table** (ID, name, memory MiB) with checkboxes; select 1–7 profiles and click create (`POST …/gpu/instances`).
+  3. **Instances table** (UUID, profile, memory, created at), `GET …/gpu/instances`.
+  4. **Destroy all** with a confirmation (`DELETE …/gpu/instances`).
+
+---
+
+## REST API
+
+Blueprint `gpu_bp`, prefix `/api/servers/<int:server_id>/gpu`. Every endpoint requires a session (`401 Authentication required`) and admin rights read from `session['is_admin']` (`403 Admin access required`). Unknown server: `404 Server not found`.
+
+### `PUT /api/servers/<id>/gpu/enabled`
+
+Body: `{"enabled": true|false}` (boolean, else `400`).
+
+- Updates `servers.shared_gpu_enabled`.
+- When enabling, runs `sudo nvidia-smi -mig 1`; on failure, resets the flag to `false` and returns `500 {"error": "MIG mode could not be enabled: …"}`.
+- Disabling only updates the flag (MIG mode and instances are left as they are).
+
+Response `200`: `{"server_id": 3, "shared_gpu_enabled": true}`.
+
+### `GET /api/servers/<id>/gpu/profiles`
+
+Runs `nvidia-smi mig -lgip` and parses each profile row.
+
+```json
+{"profiles": [{"profile_id": 19, "name": "MIG 1g.10gb", "memory_mib": 9728}]}
+```
+
+`memory_mib` is the GiB value from `nvidia-smi` × 1024. SSH or `nvidia-smi` errors return `500` with the stderr text (prefixed `Server unreachable:` for timeouts / refused connections / no route).
+
+### `POST /api/servers/<id>/gpu/instances`
+
+Body: `{"profile_ids": ["19", "19", "14"]}`, 1–7 entries (`400` otherwise). Profile IDs are joined with commas, so send them as strings (the UI does).
+
+- Requires `shared_gpu_enabled = true` (`400 Shared GPU must be enabled first`).
+- Runs `sudo nvidia-smi mig -cgi <ids> -C`, then `nvidia-smi -L`; every `MIG <profile> Device N: (UUID: MIG-…)` line is inserted into `mig_instances` with `gpu_memory_mb = 0`.
+- Response `201`: `{"message": "MIG instances created successfully", "instances": [{"instance_uuid": "MIG-…", "profile_name": "1g.10gb", "gpu_memory_mb": 0}]}`.
+- Errors: creation failure → `500` with stderr (max 4096 chars); list failure → `500 {"error": "Instances created but detail retrieval failed", "output": …}`.
+
+### `GET /api/servers/<id>/gpu/instances`
+
+Returns the instances stored in `mig_instances` for the server (not queried live from the GPU), ordered by `created_at`:
+
+```json
+{"instances": [{"instance_uuid": "MIG-…", "profile_name": "1g.10gb", "gpu_memory_mb": 0, "created_at": "…"}]}
+```
+
+### `DELETE /api/servers/<id>/gpu/instances`
+
+- `400 No MIG instances configured on this server` if `mig_instances` has no row for the server.
+- Runs `sudo nvidia-smi mig -dci` then `sudo nvidia-smi mig -dgi`. DB rows are deleted only if both succeed; if `-dgi` fails after `-dci` the response says the state is inconsistent (`500`).
+- Response `200`: `{"message": "All MIG instances destroyed", "count": 3}`.
+
+There is no `GET …/gpu/enabled`; the page's initial toggle state relies on it, so the toggle shows "disabled" on load until changed.
+
+Logs: `logs/gpu_routes.log`.
+
+### Known issues in the current code
+
+- `admin`-only checks read `session['is_admin']`, which the login flow does not set. Until that is fixed, the page and API answer `403` even for admins.
+- Instance persistence conflicts with the schema: rows are inserted with `gpu_memory_mb = 0` (the column requires 1–81920), and the 40-character `MIG-<uuid>` does not fit `VARCHAR(36)`. After `nvidia-smi` succeeds, the `INSERT` can fail, so the slices exist on the GPU without being recorded.
+- `nvidia-smi -L` lists all MIG devices, not only the new ones. Pre-existing instances are inserted again and hit the unique constraint.
+- `GET …/instances` calls `execute_query` without `fetch_all=True`, so it receives a row count instead of rows and fails as soon as one instance is stored.
+
+---
+
+## Database (`migration/add_mig_gpu.sql`)
+
+Applied automatically during DB init (`src/database_postgres.py`).
+
+| Object | Columns |
+|--------|---------|
+| `servers.shared_gpu_enabled` | `BOOLEAN DEFAULT FALSE` |
+| `mig_instances` | `server_id` (cascade), `instance_uuid VARCHAR(36)`, `profile_name`, `gpu_memory_mb` (`CHECK 1–81920`), `created_at`; unique `(server_id, instance_uuid)` |
+| `mig_profiles` | `server_id`, `profile_name`, `profile_id`, `gpu_memory_gb` (1–80); created but not used by the code (profiles are always read live) |
+
+---
+
+## Using a MIG slice in a container
+
+Once an instance exists, any container on that server can be pinned to it by UUID (requires the NVIDIA Container Toolkit):
+
 ```bash
-docker run --gpus '"device=MIG-xxx"' my-ai-model:latest
+nvidia-smi -L                                   # find MIG-<uuid>
+docker run --rm --gpus '"device=MIG-<uuid>"' nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 ```
 
----
-
-## Why OVH Professional Services?
-
-### For the Sales Conversation
-
-|                 Customer Pain                |                        agentic-ai-plateform Answer                                         |                      OVH Value                       |
-|----------------------------------------------|------------------------------------------------------|-----------------------------------------------|
-| "Our AI team can't wait for IT to provision" | Self-service web UI + API for instant GPU access     | Reduced support tickets, faster adoption               |
-| "We need AI agents to deploy autonomously"   | MCP protocol + REST API for GenAI automation         | Future-proof positioning in AI infrastructure  |
-| "GPUs are too expensive for our team"        | MIG partitioning — share one H100 across 7 workloads | Upsell bare-metal GPU with higher utilization         |
-| "We need isolated GPU for each tenant"       | Hardware-level isolation via MIG instances           | Differentiation vs. basic VM-based GPU sharing |
-| "We want serverless GPU jobs"                | Serverless Docker execution with GPU passthrough     | New billing model: pay-per-job                     |
-
-### Increase Usage Opportunities
-
-1. **GPU Compute Upsell**: Customers who partition GPUs will consume more GPU hours overall
-2. **Professional Services Engagement**: Platform setup, customization, and training
-3. **Managed Service Add-on**: OVH operates the platform, customer focuses on AI workloads
-4. **Per-Job Billing**: Serverless execution enables consumption-based pricing
+The platform does **not** attach MIG slices automatically. No launch path adds `--gpus`: not serverless jobs (`src/serverless/container_runtime.py`), not orchestrator replicas (`src/orchestrator.py`), and not template deployments. Assigning a slice to a workload is a manual step (for example in the application's own `docker-compose` / deploy script).
 
 ---
 
-## Platform Capabilities at a Glance
+## Container runtime (runc / kata)
 
-|        Capability         |                    Description                          |
-|---------------------------|---------------------------------------------------------|
-| ⚡ **Serverless Docker** | Submit Docker jobs on-demand, GPU-accelerated            |
-| 🚀 **App Deployment**    | Clone, build, start, stop, monitor — full lifecycle      |
-| 🤖 **AI Agent Support**  | MCP protocol for autonomous GenAI deployment             |
-| 🎮 **MIG Shared GPU**    | Partition NVIDIA GPUs into isolated instances per server |
-| 🔐 **Multi-tenant Auth** | SSO, 2FA, role-based access, per-user isolation          |
-| 🌐 **Multi-server**      | Capacity-based server allocation with replication        |
-| 💰 **Billing**           | Activity tracking, cost attribution, usage reports       |
-| 🛡️ **Security**          | ModSecurity WAF, OWASP CRS, input validation             |
-| 📊 **Monitoring**        | Health checks, real-time logs, database statistics       |
+The runtime used for platform-launched containers is the top-level `runtime_type` key of the `configuration` table (seeded as `runc`). Admins set it in **Dashboard → Settings → Container Runtime Type**. Values are checked against an allow-list (`runc`, `kata`); anything else falls back to `runc`.
 
----
+| Runtime | Isolation | Effect |
+|---------|-----------|--------|
+| `runc` (default) | Shared host kernel | No `--runtime` flag (Docker default) |
+| `kata` | One lightweight MicroVM per container | Adds `--runtime kata` |
 
-## Demo Scenario (15 minutes)
+Where it applies:
 
-1. **Show the dashboard** — Server list with "Shared-GPU" button
-2. **Enable MIG** on a server — Toggle switch, watch MIG mode activate via SSH
-3. **List profiles** — Show available partition sizes (1g.10gb, 2g.20gb, 4g.40gb)
-4. **Create 3 instances** — Select profiles, click Create, see UUIDs appear
-5. **Run a Docker container** on one slice — Prove isolation with `nvidia-smi`
-6. **Destroy instances** — One click, clean teardown
-7. **Submit a serverless job** — Show the API call, watch it execute in a container
+- **Orchestrator replicas** (`src/orchestrator.py`, also used by template deployments): read on each container start.
+- **Git-based app deployments** (`src/routes/api_routes.py`): passed to the deploy script as a trailing positional argument and as the `RUNTIME_TYPE` environment variable.
+- **Serverless worker**: read once at worker startup; restart the worker after changing it.
 
-**Key message**: "Your customer goes from bare-metal GPU to isolated, shared, self-service GPU compute in under 60 seconds."
+GPU passthrough under Kata needs extra host configuration (VFIO / Kata GPU support) that the platform does not set up; use `runc` for GPU containers unless you have configured it.
 
 ---
 
-## Technical Requirements
+## Host prerequisites (`init_pltf.sh`)
 
-- OVH Bare Metal GPU server (NVIDIA H100, A100, or A30 with MIG support)
-- Ubuntu 22.04+ with Docker
-- Platform auto-installs: NVIDIA drivers, MIG mode, Container Toolkit
-- PostgreSQL database (can run on the same server or dedicated instance)
+`init_pltf.sh` prepares the host it runs on:
 
----
+1. **Kata Containers 3.32.0**: downloads `kata-static-3.32.0-amd64.tar.zst`, installs to `/opt/kata`, and **overwrites** `/etc/docker/daemon.json` with:
+   ```json
+   {"runtimes": {"kata": {"runtimeType": "/opt/kata/bin/containerd-shim-kata-v2"}}}
+   ```
+   then `systemctl reload docker`. Verify with `docker info | grep -i kata` and `docker run --runtime kata --rm hello-world`.
+2. **NVIDIA driver**: `apt install nvidia-driver-550 nvidia-utils-550`. If that fails (no GPU), the GPU steps are skipped with a warning.
+3. **MIG mode**: `sudo nvidia-smi -mig 1` (warning if the GPU does not support MIG).
+4. **NVIDIA Container Toolkit**: `apt install nvidia-container-toolkit`, then a check with `docker run --rm --gpus '"device=0"' nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi`.
 
-## Next Steps
+The script does not run `nvidia-ctk runtime configure`. If the GPU check fails, configure the NVIDIA runtime in Docker manually, and merge its settings with the `kata` entry because `daemon.json` is overwritten.
 
-1. **Schedule a live demo** with the customer's technical team
-2. **Propose a PoC** on dedicated OVH GPU infrastructure (1-2 weeks)
-3. **Size the deployment** based on customer workload profiles
-4. **Deliver** as a Professional Services engagement with optional managed operations
-
----
-
-*agentic-ai-plateform — Making GPU compute accessible, shareable, and autonomous.*
-
----
-
-## Technical: Shared GPU with Docker and the Container Runtime
-
-### How GPU slices reach containers
-
-Once MIG is enabled and instances are created, each isolated slice is exposed to a container through the Docker `--gpus` flag by its MIG UUID:
-
-```bash
-docker run --gpus "device=MIG-<uuid>" my-ai-model:latest
-```
-
-The same mechanism is used by git-based app deployments, serverless jobs, and orchestrator replicas, so any workload can be pinned to a dedicated GPU partition.
-
-### Container runtime: runc default or kata optional
-
-The platform supports two container runtimes, selectable per-platform from the admin Settings page:
-
-| Runtime | Isolation | Notes |
-|---------|-----------|-------|
-| `runc` (default) | Shares the host kernel | Fast, dense; emits no `--runtime` flag (Docker default) |
-| `kata` (optional) | Dedicated lightweight MicroVM per container, own kernel | Stronger isolation for multi-tenant / sensitive workloads |
-
-When `kata` is selected, the platform adds `--runtime kata` across all three launch paths: orchestrator replica services, serverless Docker jobs, and git-based app deployments. The serverless worker reads the runtime type once at startup, so a worker restart is required to pick up a change. Git-based deployments receive the runtime type both as a trailing positional argument to `deployApp.sh` and via the `RUNTIME_TYPE` environment variable. The value is validated against an allow-list (`runc`, `kata`); any other value falls back to `runc`.
-
-> GPU workloads work under both runtimes. Choose `runc` for maximum density and speed, or `kata` when you need hardware-level isolation between tenants sharing the same host and GPU.
-
-### Server prerequisites handled by init_pltf.sh
-
-`init_pltf.sh` provisions each GPU server with: NVIDIA drivers (`nvidia-driver-550`), MIG mode enablement, the NVIDIA Container Toolkit (`nvidia-container-toolkit`) for Docker GPU access, and registration of the `kata` runtime with the Docker daemon. Verify with `docker info` and `docker run --runtime kata hello-world`.
+Other GPU servers managed through `/servers/<id>/gpu` need the same driver, MIG and toolkit setup, plus SSH access for `ubuntu` from the controller.

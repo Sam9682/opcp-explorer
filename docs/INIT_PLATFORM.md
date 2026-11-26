@@ -1,205 +1,150 @@
-# INIT_PLATFORM — User Guide
+# Platform Initialization (`init_pltf.sh`)
 
-This document explains how to use `init_pltf.sh` to bootstrap a fresh server for the AI-SwAutoMorph platform.
+`init_pltf.sh` bootstraps a fresh Ubuntu server for OPCP-explorer:
 
-## Overview
+- installs system dependencies, CLIs, Docker, Kata Containers and NVIDIA/MIG support
+- clones the platform repository into its install folder
+- prepares the Python environment
 
-`init_pltf.sh` is a one-shot provisioning script that installs all system dependencies, configures networking, sets up Docker, and prepares the repository for deployment. It is designed to run on a fresh **Ubuntu** server (typically an OVHcloud instance).
-
-Before any installation step, the script collects the **platform identity** so each customer deployment can be renamed in one place. When a terminal is attached it prompts for the values below (press Enter to accept the shown default); it then clones the repository and writes `PLTF_NAME` / `PLTF_FOLDER` into `conf/deploy.ini`.
-
-
-### How the defaults are resolved
-
-Each of the four identity values is resolved independently through a fixed precedence chain:
-
-1. A pre-set environment variable (if non-empty) always wins.
-2. Otherwise the matching key in `conf/deploy.ini` is used (if present and non-empty).
-3. Otherwise a built-in hardcoded fallback is used, so the script never breaks on a fresh or incomplete config.
-
-The hardcoded fallbacks are `agentic-ai-plateform` (PLTF_FOLDER), `agentic-ai-plateform` (PLTF_NAME), `https://github.com/Sam9682/agentic-ai-plateform.git` (REPO_URL) and `git@github.com:Sam9682/ai-swautomorph--shared.git` (SUBMODULE_URL). The shipped `conf/deploy.ini` already defines these keys (its `PLTF_NAME` is the longer deployment-specific value, which takes precedence over the fallback), and every parameter in that file carries an explanatory comment.
+After it finishes, continue with [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) to start the platform.
 
 ## Prerequisites
 
-| Requirement |                              Details                       |
-|-------------|------------------------------------------------------------|
-| OS          | Ubuntu 22.04+ (tested on OVHcloud VPS/dedicated)           |
-| User        | A non-root user with `sudo` privileges                     |
-| Network     | Internet access (public interface)                         |
-| SSH key     | Configured for `git@github.com:Sam9682/agentic-ai-plateform.git` |
-| GPU (optional) | NVIDIA H100, A100, or A30 for MIG shared GPU features   |
+| Requirement | Details |
+|-------------|---------|
+| OS | Ubuntu 22.04+ (tested on OVHcloud instances) |
+| User | A user with `sudo`. Running via `sudo` is supported: ownership of the clone, `~/.aws` and `~/deployments/admin` is handed back to the invoking user at the end. |
+| Network | Internet access |
+| Git access | Read access to `REPO_URL`. An SSH key for `SUBMODULE_URL` if it is an `git@` URL. |
+| `conf/deploy.ini` | **Required.** The script aborts if it is missing. |
+| GPU (optional) | NVIDIA H100 / A100 / A30 for MIG shared GPU |
 
-## What the script installs
+## Quick start
 
-|         Component       |               Purpose               |
-|-------------------------|-------------------------------------|
-| Python 3 + pip + venv   | Application runtime                 |
-| net-tools, unzip        | System utilities                    |
-| Amazon Kiro CLI         | AI-assisted CLI chat                |
-| OVH shai CLI            | OVHcloud management                 |
-| AWS CLI v2              | S3-compatible object storage access |
-| Terraform 1.14.5        | Infrastructure as code              |
-| Docker + docker-compose | Container orchestration             |
-| NVIDIA Drivers + MIG    | GPU compute and Multi-Instance GPU partitioning |
-
-## Usage
+From a checkout of the repository (or a folder containing `init_pltf.sh` and `conf/`):
 
 ```bash
+cp conf/deploy.ini.template conf/deploy.ini
+vi conf/deploy.ini            # set DOMAIN, LINUX_USER_INSTALLATION, S3_BUCKET_NAME, ...
 chmod +x init_pltf.sh
 ./init_pltf.sh
 ```
 
-The script first prompts for the platform identity, then runs the install steps. Each step prints a colored status:
-- 🟢 `[OK]` — step completed successfully
-- 🔴 `[ERROR]` — step failed
-- 🟡 `[WARNING]` — non-critical issue or manual action needed
+The script asks five questions (press Enter to keep the default), then runs every install step. Each step prints `[OK]`, `[WARNING]` (non-blocking) or `[ERROR]`.
 
-### Platform identity prompts
+## Platform identity prompts
 
-| Prompt | Default | Written to |
-|--------|---------|------------|
-| Platform folder slug (`PLTF_FOLDER`) | `agentic-ai-plateform` | install dir, container prefixes, `conf/deploy.ini` |
-| Platform display name (`PLTF_NAME`) | `agentic-ai-plateform_AI_SharedGPU_Docker_Serverless` | web UI, generated docs, `conf/deploy.ini` |
-| Repository clone URL (`REPO_URL`) | `https://github.com/Sam9682/agentic-ai-plateform.git` | the clone source |
-| Shared submodule URL (`SUBMODULE_URL`) | `git@github.com:Sam9682/ai-swautomorph--shared.git` | the `shared` submodule source |
+| Prompt | Variable | Effect |
+|--------|----------|--------|
+| Platform folder slug | `PLTF_FOLDER` | Clone directory name, container prefixes. It must be lowercase letters, digits and hyphens; an invalid value is asked again, or aborts if it came from the environment. |
+| Platform display name | `PLTF_NAME` | Name shown in the UI and banners |
+| Repository clone URL | `REPO_URL` | Source of the clone |
+| Shared submodule URL | `SUBMODULE_URL` | Added as the `shared` submodule (holds `deployApp.sh` and the AI agent context files) |
+| Install location (parent folder) | `INSTALL_DIR` | The repo is cloned into `<INSTALL_DIR>/<PLTF_FOLDER>`. Default `../`. |
 
-The folder slug is validated (lowercase letters, digits and hyphens only); an invalid value is re-prompted, or aborts the run if it was pre-set via the environment.
+Each default is resolved independently, in this order:
 
-### Non-interactive / CI runs
+1. the environment variable, if it is set and non-empty;
+2. the key in `conf/deploy.ini`;
+3. a built-in fallback.
 
-Pre-set any of the four values as environment variables to skip the matching prompt. With no TTY and no overrides, the defaults above are used:
+The fallbacks are `agentic-ai-plateform` for the folder and name, `https://github.com/Sam9682/agentic-ai-plateform.git`, `git@github.com:Sam9682/ai-swautomorph--shared.git`, and `../`.
+
+### Non-interactive runs
+
+Set the variables up front to skip the prompts. With no TTY, every unset value takes its default.
 
 ```bash
 PLTF_FOLDER=acme-cloud \
 PLTF_NAME="Acme Cloud Platform" \
 REPO_URL=https://github.com/your-org/your-repo.git \
 SUBMODULE_URL=git@github.com:your-org/shared.git \
+INSTALL_DIR=/home/psmc \
 ./init_pltf.sh
 ```
 
-## Step-by-step breakdown
+> To use the default layout `/home/<LINUX_USER_INSTALLATION>/<PLTF_FOLDER>` that the rest of the platform expects, set `INSTALL_DIR` to `/home/<LINUX_USER_INSTALLATION>`.
 
-### 1. System dependencies
+## What the script does
 
-Installs Python 3, pip, venv, net-tools, and unzip via `apt`.
+| # | Step | Details |
+|---|------|---------|
+| 0 | Pre-checks | Requires `conf/deploy.ini`. Makes sure `/tmp` exists with mode `1777`. |
+| 1 | System packages | `python3`, `python3-pip`, `python3-venv`, `net-tools`, `unzip` |
+| 2 | CLIs | Amazon Kiro CLI (`cli.kiro.dev`), OVH `shai`, AWS CLI v2. Kiro and shai are the engines behind the AI agents (see [technicals/VIRTUAL_AGENTS.md](./technicals/VIRTUAL_AGENTS.md)). |
+| 3 | Terraform | 1.14.5 into `/usr/local/bin` (falls back to `apt`) |
+| 4 | Network | If netplan is present: public interface metric `50`, private `200` (backs up the netplan file first) |
+| 5 | Docker | Docker Engine via `get.docker.com`, `docker-compose`, adds the user to the `docker` group |
+| 6 | Kata Containers | Kata 3.32.0 static release into `/opt/kata`. Registers the `kata` runtime with the Docker daemon. |
+| 7 | NVIDIA / MIG | `nvidia-driver-550`, `nvidia-smi -mig 1`, `nvidia-container-toolkit`, then a `docker run --gpus` test (30 s timeout). Every GPU step is non-blocking. |
+| 8 | AWS profile | Writes `~/.aws/config` and `~/.aws/credentials` with a placeholder `OVH-SWAUTOMORPH` profile (endpoint `s3.gra.io.cloud.ovh.net`). **Overwrites existing files.** |
+| 9 | Clone | `git clone REPO_URL <INSTALL_DIR>/<PLTF_FOLDER>`, adds the `shared` submodule, `submodule update --init --recursive` |
+| 10 | Identity | Writes `PLTF_NAME` and `PLTF_FOLDER` into the clone's `conf/deploy.ini` |
+| 11 | Python | `.venv` in the clone + `pip install -r requirements.txt` |
+| 12 | Final | Creates `logs/`, makes `setup_modsecurity_config.sh` executable, creates `~/deployments/admin` |
+| 13 | Ownership | When run under `sudo`, `chown -R` of the clone and home artifacts to the invoking user |
 
-### 2. CLI tools
+## After the script
 
-Installs three CLI tools:
-- **Kiro CLI** — from `https://cli.kiro.dev/install`
-- **OVH shai** — from the official OVH GitHub repository
-- **AWS CLI v2** — from the official AWS distribution
+1. **Complete the clone's `conf/deploy.ini`.** The new clone's `conf/deploy.ini` contains only `PLTF_NAME` and `PLTF_FOLDER`, because `deploy.ini` is not tracked in git. Copy in your other settings (`DOMAIN`, `LINUX_USER_INSTALLATION`, `S3_BUCKET_NAME`, ...):
 
-### 3. Terraform
+   ```bash
+   cd <INSTALL_DIR>/<PLTF_FOLDER>
+   cat conf/deploy.ini.template      # reference
+   vi conf/deploy.ini
+   ```
 
-Downloads and installs Terraform `1.14.5` to `/usr/local/bin/`.
+2. **Add SSL certificates** inside the clone:
 
-### 4. Network interface priorities
+   ```bash
+   mkdir -p ssl/<DOMAIN>
+   # ssl/<DOMAIN>/fullchain_domain.crt
+   # ssl/<DOMAIN>/privateKey_domain.key
+   ```
 
-Automatically detects public and private network interfaces and configures netplan route metrics:
-- **Public interface** → metric `50` (preferred for outbound traffic)
-- **Private interface** → metric `200` (lower priority)
+   The script's closing message also creates an `ssl/<DOMAIN>` folder. That folder lands in the directory it ends in (`~/deployments`), not in the clone, so create the folder in the clone yourself. `scripts/generate_ssl.sh` and `scripts/setup_letsencrypt.sh` exist, but they do not write to `ssl/<DOMAIN>/`. Move their output there (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md#ssl-certificates)).
 
-A backup of the original netplan configuration is created before any changes.
+3. **Set S3 credentials** in `~/.aws/credentials` (replace `XXX` / `YYY`):
 
-> This step is skipped if netplan is not found on the system.
+   ```ini
+   [OVH-SWAUTOMORPH]
+   aws_access_key_id = YOUR_ACCESS_KEY
+   aws_secret_access_key = YOUR_SECRET_KEY
+   endpoint_url = https://s3.gra.io.cloud.ovh.net/
+   signature_version = s3v4
+   ```
 
-### 5. Docker
+4. **Apply the docker group**: log out and back in, or run `newgrp docker`.
 
-Installs Docker Engine and docker-compose. Adds the current user to the `docker` group.
+5. **Start the platform**:
 
-> You must log out and back in (or run `newgrp docker`) for the group change to take effect.
+   ```bash
+   source .venv/bin/activate
+   python3 scripts/controller_cli.py start locally
+   ```
 
-### 6. NVIDIA GPU Drivers and MIG
-
-Installs NVIDIA GPU drivers and enables Multi-Instance GPU (MIG) mode for GPU sharing:
-
-1. **NVIDIA Driver** — Installs `nvidia-driver-550` and `nvidia-utils-550` via apt
-2. **MIG Mode** — Enables Multi-Instance GPU with `sudo nvidia-smi -mig 1` (requires compatible GPU like H100/A100/A30)
-3. **Container Toolkit** — Installs `nvidia-container-toolkit` for Docker GPU access
-4. **Verification** — Runs `docker run --gpus` test with a 30-second timeout
-
-All GPU steps are non-blocking — if the server has no GPU or an incompatible GPU, the script logs a warning and continues with the remaining setup.
-
-> This step requires an NVIDIA GPU with MIG support (H100, A100, or A30). On servers without GPU hardware, a warning is logged and the platform operates without GPU features.
-
-### 7. AWS credentials
-
-Creates `~/.aws/config` and `~/.aws/credentials` with a placeholder profile `OVH-SWAUTOMORPH` pointing to the OVHcloud S3 endpoint (`s3.gra.io.cloud.ovh.net`).
-
-### 8. Repository clone
-
-Clones the repository from the chosen `REPO_URL` into the chosen `PLTF_FOLDER`, adds the `shared` submodule from `SUBMODULE_URL`, and initializes submodules. After the clone, `PLTF_NAME` and `PLTF_FOLDER` are written into `conf/deploy.ini`.
-
-### 9. Python virtual environment
-
-Creates a `.venv` in the project directory and installs all dependencies from `requirements.txt`.
-
-### 10. Final configuration
-
-Creates the `logs/` directory and makes `setup_modsecurity_config.sh` executable.
-
-## Post-installation steps
-
-After the script completes, you **must** perform these manual steps:
-
-### Review the platform identity
-
-`PLTF_NAME` and `PLTF_FOLDER` were already written to `./conf/deploy.ini` from your answers to the init prompts. Review the remaining settings there (and adjust `PLTF_NAME` / `PLTF_FOLDER` if needed):
-
-```ini
-DOMAIN=yourdomain.com
-PLTF_NAME=Your Platform Name
-PLTF_FOLDER=your-platform
-
-# Optional: secondary domains
-SECONDARY_DOMAINS=other.com:other.com www.other.com:https://yourdomain.com:6137
-```
-
-### Add SSL certificates
-
-Place your SSL files in the `ssl/` directory:
-
-```
-~/<PLTF_FOLDER>/ssl/fullchain_domain.crt    # Full certificate chain
-~/<PLTF_FOLDER>/ssl/privateKey_domain.key   # Private key
-```
-
-### Configure S3 credentials
-
-Edit `~/.aws/credentials` and replace the placeholder values:
-
-```ini
-[OVH-SWAUTOMORPH]
-aws_access_key_id = YOUR_ACCESS_KEY
-aws_secret_access_key = YOUR_SECRET_KEY
-endpoint_url = https://s3.gra.io.cloud.ovh.net/
-signature_version = s3v4
-```
-
-### Apply Docker group
-
-Log out and back in, or run:
+## Verifying optional components
 
 ```bash
-newgrp docker
+docker info | grep -i kata                      # kata runtime registered
+docker run --runtime kata --rm hello-world      # kata works
+nvidia-smi                                      # driver
+nvidia-smi -L                                   # GPUs / MIG devices
 ```
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| `Permission denied` on script | Run `chmod +x init_pltf.sh` |
-| Docker commands fail after install | Log out/in or run `newgrp docker` |
-| Git clone fails | Ensure your SSH key is added to GitHub |
-| Netplan step skipped | Normal on non-netplan systems; configure routing manually |
-| AWS CLI not found after install | Run `source ~/.bashrc` or open a new shell |
-| NVIDIA driver fails to install | Normal on non-GPU servers; GPU features will be unavailable |
-| MIG mode enable fails | GPU may not support MIG (requires H100/A100/A30) |
-| Docker GPU verification fails | Check `nvidia-smi` works on the host first |
+| `conf/deploy.ini not found` | `cp conf/deploy.ini.template conf/deploy.ini`, edit, re-run |
+| `Invalid slug` | Use lowercase letters, digits and hyphens only |
+| Docker permission denied after install | `newgrp docker` or log out/in |
+| Clone or submodule fails | Check `REPO_URL` / `SUBMODULE_URL` and your SSH key |
+| Netplan step skipped | Normal without netplan; configure routing manually if needed |
+| `aws` not found | Open a new shell |
+| NVIDIA / MIG warnings | Expected on servers without a MIG-capable GPU; GPU features stay disabled |
+| Docker GPU test fails | Check `nvidia-smi` on the host first |
 
-## Related documentation
+## Tests
 
-- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) — How to deploy the platform after initialization
-- [ARCHITECTURE_GUIDE.md](./ARCHITECTURE_GUIDE.md) — Platform architecture overview
-- [REPLICATION_GUIDE.md](./technicals/REPLICATION_GUIDE.md) — Multi-server replication setup
+`tests/bash/` contains unit, property and integration tests for the script: ownership restore, identity resolution and preservation. See [technicals/TESTING.md](./technicals/TESTING.md).

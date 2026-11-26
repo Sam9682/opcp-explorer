@@ -1,83 +1,112 @@
-# Serverless Orchestration
+# Serverless Jobs
 
-## English
+OPCP-explorer lets an authenticated user run a short-lived container ("job"): an image, a command, optional environment variables and a timeout. Jobs are queued in PostgreSQL, executed in a hardened container, and their exit code and stdout/stderr are kept for retrieval.
 
-## Overview
-
-The Serverless Orchestration module provides on-demand, ephemeral Docker container execution as a managed service. Users submit jobs specifying a container image and command; the platform handles scheduling, execution, security isolation, timeout enforcement, log capture, and result storage — all without requiring users to manage their own infrastructure.
+Related docs: [API_REFERENCE.md](API_REFERENCE.md) · [SHARE_GPU_DOCKER.md](SHARE_GPU_DOCKER.md) (runtime / GPU) · [LIST_OF_APP_AVAILABLE.md](LIST_OF_APP_AVAILABLE.md) (`opcp-serverless-brik`) · [technicals/DATABASE.md](technicals/DATABASE.md)
 
 ---
 
-## Architecture
+## Components
+
+| Component | Location | Role |
+|-----------|----------|------|
+| REST API | `src/routes/serverless_routes.py` (blueprint `serverless_bp`, prefix `/api`) | Submit, list, inspect, cancel jobs; list serverless endpoints; admin metrics |
+| Job queue | PostgreSQL tables `serverless_jobs`, `serverless_job_logs`, `serverless_job_results` | Job state, output, structured result |
+| Worker | `src/serverless/worker.py` (`python3 -m src.serverless.worker`) | Claims pending jobs, runs containers, stores output |
+| Container runtime | `src/serverless/container_runtime.py` | Docker CLI wrapper (Podman fallback) with security flags |
+| Config | `src/serverless/config.py` (`SERVERLESS_CONFIG`) | Registry whitelist, limits, timeouts |
+| Log cleanup | `src/serverless/log_cleanup.py` | Purges logs/jobs older than 30 days |
+| Serverless endpoints | `opcp-serverless-brik` application (see [LIST_OF_APP_AVAILABLE.md](LIST_OF_APP_AVAILABLE.md)) | Remote "brik" a job is targeted at (`target_link`) |
+| UI | Dashboard tab **🚀 Serverless** (`orchestratorServerlessSection` in `templates/dashboard.html`, JS in `static/js/dashboard_functions.js`) | Endpoint list, metrics, submit form, job table |
 
 ```
-┌───────────────┐        ┌────────────────┐       ┌──────────────────┐
-│   REST API    │──────▶│  PostgreSQL    │◀──────│  Worker Service  │
-│  /api/jobs    │        │  (Job Queue)   │       │  (Poll & Execute)│
-└───────────────┘        └────────────────┘       └────────┬─────────┘
-                                                          │
-                                                          ▼
-                                                 ┌───────────────────┐
-                                                 │ Container Runtime │
-                                                 │ (Docker / Podman) │
-                                                 └───────────────────┘
-```
-
-### Components
-
-|         Component        |                                        Role                                             |
-|--------------------------|-----------------------------------------------------------------------------------------|
-| **REST API**             | Accepts job submissions, returns status and results                                     |
-| **PostgreSQL Job Queue** | Stores jobs with state machine (pending → running → completed/failed/timeout/cancelled) |
-| **Worker Service**       | Polls the queue, claims jobs, executes containers, captures output                      |
-| **Container Runtime**    | Abstract layer supporting Docker and Podman with full security hardening                |
-
----
-
-## Job Lifecycle
-
-1. **Submission** — User sends a `POST /api/jobs` request with image, command, optional env vars, and timeout.
-2. **Queued** — Job is stored in PostgreSQL with status `pending`.
-3. **Claimed** — A worker polls the queue using `FOR UPDATE SKIP LOCKED` (no contention between workers) and sets status to `running`.
-4. **Execution** — The worker pulls the image, starts the container with security constraints, and waits for completion.
-5. **Completion** — Stdout/stderr are captured and stored. Job is marked `completed`, `failed`, or `timeout`.
-6. **Cancellation** — Users can cancel `pending` or `running` jobs via `POST /api/jobs/<id>/cancel`. Running containers are stopped gracefully.
-
-### State Diagram
-
-```
-pending ──▶ running ──▶ completed
-   │            │
-   │            ├──▶ failed
-   │            │
-   │            └──▶ timeout
-   │
-   └──▶ cancelled
+ Dashboard / API client
+        │ POST /api/jobs (image, command, env, timeout, target_link)
+        ▼
+ ┌──────────────────┐   INSERT status=pending   ┌──────────────────────┐
+ │ serverless_bp    │──────────────────────────▶│ serverless_jobs (PG) │
+ │ (Flask, /api)    │◀──── read status/logs ────│ + job_logs / results │
+ └───────┬──────────┘                           └──────────▲───────────┘
+         │ GET {target_link}/jobs/<id>                     │ SELECT … FOR UPDATE SKIP LOCKED
+         ▼ (status sync, see below)                        │ UPDATE status / INSERT logs
+ opcp-serverless-brik endpoint                  ┌──────────┴───────────┐
+                                                │ serverless worker    │──▶ docker run (runc|kata)
+                                                └──────────────────────┘
 ```
 
 ---
 
-## Security Model
+## Job lifecycle
 
-Every container runs with strict isolation:
+Statuses (DB `CHECK` constraint): `pending`, `running`, `completed`, `failed`, `timeout`, `cancelled`.
 
-| Constraint | Description |
-|------------|-------------|
-| `--read-only` | Root filesystem is mounted read-only |
-| `--user nobody` | Runs as unprivileged user |
-| `--cap-drop ALL` | All Linux capabilities are dropped |
-| `--network none` | No network access by default |
-| `--security-opt no-new-privileges` | Prevents privilege escalation |
-| `--pids-limit 256` | Limits the number of processes |
-| `--memory` | Memory limit (default 512 MB) |
-| `--cpus` | CPU limit (default 1 core) |
-| **Registry Whitelist** | Only approved registries are allowed (docker.io, ghcr.io, etc.) |
+```
+pending ──▶ running ──▶ completed   (container exited; any exit code)
+   │           ├──────▶ failed      (registry rejected, pull/start error, …)
+   │           ├──────▶ timeout     (exceeded timeout_seconds)
+   └───────────┴──────▶ cancelled   (POST /api/jobs/<id>/cancel)
+```
+
+1. **Submit** – `POST /api/jobs` validates the payload and inserts a `pending` row with the chosen `target_link`.
+2. **Claim** – a worker selects the oldest `pending` job with `FOR UPDATE SKIP LOCKED`, sets `running`, `worker_id`, `started_at`.
+3. **Execute** – the worker re-checks the registry whitelist, `docker pull`s the image, then `docker run -d` with the security flags below.
+4. **Wait** – the worker waits in 2-second slices; between slices it checks whether the job was set to `cancelled` (then stops the container) and enforces the timeout.
+5. **Store** – stdout and stderr go to `serverless_job_logs`; `{exit_code, stdout_length, stderr_length}` goes to `serverless_job_results`; status becomes `completed` with `exit_code` (a non-zero exit code is still `completed`).
+6. **Failures** – any exception marks the job `failed` and writes the error message as a `stderr` log line. Timeout stops the container (`container_stop_timeout`, 10 s) and marks `timeout`. The container is always removed (`docker rm -f`).
+
+### Remote status sync (`target_link`)
+
+Every job carries a `target_link` (an `opcp-serverless-brik` URL from `/api/serverless-links`). The API does **not** push the job to that endpoint; it only polls it. When a job is read while still `pending`/`running` (`GET /api/jobs`, `GET /api/jobs/<id>`, `GET /api/jobs/<id>/result`), `sync_job_from_remote()`:
+
+- requests `GET {target_link}/jobs/<job_id>` (5 s timeout), first over HTTP with the port decremented by one, then the original HTTPS URL;
+- maps the remote status (`success`/`completed` → `completed`, `error`/`failed` → `failed`, `timeout`, `running`, `pending`, `cancelled`);
+- on a terminal remote status, updates the local row (`status`, `exit_code`, `completed_at`) and stores remote `stdout`/`stderr` in `serverless_job_logs`; on `running`, sets `started_at`.
+
+If the endpoint is unreachable, the local DB values are returned unchanged.
+
+Notes:
+
+- The local worker claims **any** `pending` job; it ignores `target_link`.
+- The port allocation (`calculate_app_ports`) puts the HTTP port at HTTPS + 1, but the sync tries HTTPS − 1, so the HTTP attempt usually misses and the HTTPS URL is used.
 
 ---
 
-## API Reference
+## REST API
 
-### Submit a Job
+All endpoints require a logged-in session (`session['user_id']`), otherwise `401 {"error": "Authentication required"}`. Non-admins only see and act on their own jobs (`403 Access denied` otherwise). Admin status is read from `session['is_admin']`. The login flow does not currently set that key, so in practice every user, admins included, is treated as a non-admin here: only their own jobs are visible and `/api/jobs/metrics` returns `403`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/serverless-links` | Available serverless endpoints |
+| POST | `/api/jobs` | Submit a job |
+| GET | `/api/jobs` | List jobs (paginated) |
+| GET | `/api/jobs/metrics` | Queue metrics (admin only) |
+| GET | `/api/jobs/<job_id>` | Job status/metadata |
+| GET | `/api/jobs/<job_id>/result` | Exit code, stdout, stderr |
+| POST | `/api/jobs/<job_id>/cancel` | Cancel a pending/running job |
+
+### `GET /api/serverless-links`
+
+Lists `opcp-serverless%` applications from `user_applications` (joined with a `RUNNING` deployment; falls back to any assignment with an `https_port`; last resort `https://<DOMAIN>:6133` owned by `admin`). Each endpoint is `OCCUPIED` if a `pending`/`running` job targets it, otherwise `AVAILABLE` (`UNKNOWN` on query error).
+
+```json
+{
+  "links": ["https://<DOMAIN>:6133"],
+  "endpoints": [
+    {"url": "https://<DOMAIN>:6133", "username": "admin", "app_name": "opcp-serverless-brik", "status": "AVAILABLE"}
+  ]
+}
+```
+
+### `POST /api/jobs`
+
+| Field | Required | Type | Rules |
+|-------|----------|------|-------|
+| `image` | yes | string | Registry must be in the whitelist, else `403 Image registry is not approved` |
+| `command` | yes | list | Non-empty JSON array (argv) |
+| `target_link` | yes | string | Endpoint URL, normally from `/api/serverless-links` |
+| `env` | no | object | Default `{}` |
+| `timeout` | no | integer | 1–3600 seconds, default 300 |
 
 ```http
 POST /api/jobs
@@ -85,258 +114,152 @@ Content-Type: application/json
 
 {
   "image": "python:3.11-slim",
-  "command": ["python", "-c", "print('Hello from serverless!')"],
+  "command": ["python", "-c", "print('hello')"],
   "env": {"MY_VAR": "value"},
-  "timeout": 60
+  "timeout": 60,
+  "target_link": "https://<DOMAIN>:6133"
 }
 ```
 
-**Response (201 Created):**
+Response `201`: `{"job_id": "<uuid>"}`. Validation errors return `400` with an `error` message; DB errors `500`.
+
+### `GET /api/jobs`
+
+Query parameters: `page` (default 1), `per_page` (default 20, clamped to 1–100), `status` (one of the six statuses, else `400`). Ordered by `created_at DESC`.
+
 ```json
 {
-  "job_id": "a1b2c3d4-e5f6-...",
-  "status": "pending",
-  "message": "Job submitted successfully"
+  "jobs": [{"job_id": "…", "user_id": 1, "image": "…", "status": "completed",
+            "created_at": "…Z", "started_at": "…Z", "completed_at": "…Z",
+            "exit_code": 0, "worker_id": "worker-001", "target_link": "https://<DOMAIN>:6133"}],
+  "total": 1, "page": 1, "per_page": 20, "pages": 1
 }
 ```
 
-### List Jobs
+### `GET /api/jobs/<job_id>`
 
-```http
-GET /api/jobs?page=1&per_page=20&status=completed
+Returns `job_id`, `status`, `image`, `created_at`, `started_at`, `completed_at`, `exit_code`, `worker_id`. `404` if unknown.
+
+### `GET /api/jobs/<job_id>/result`
+
+Returns `{"exit_code", "stdout", "stderr", "result"}`. `409 Job is still in progress` if the job is not terminal. Output comes from the remote endpoint when it answers (then `result` is `null`), otherwise from `serverless_job_logs` (concatenated per stream) and `serverless_job_results`.
+
+### `POST /api/jobs/<job_id>/cancel`
+
+Only `pending` or `running` jobs (`409 Job cannot be cancelled` otherwise). Sets `cancelled` + `completed_at`; a worker running the job notices within ~2 s and stops the container. Response: `{"message": "Job cancelled", "job_id": "…"}`.
+
+### `GET /api/jobs/metrics` (admin)
+
+```json
+{"pending_count": 0, "running_count": 0, "failed_count": 0,
+ "avg_execution_time": 1.23, "queue_depth": 0, "avg_startup_duration": 0.6}
 ```
 
-Returns paginated job list with filtering by status.
+`avg_execution_time` = mean `completed_at - started_at` of completed jobs; `avg_startup_duration` = mean `started_at - created_at` (seconds, `null` if no data).
 
-### Get Job Status
+---
 
-```http
-GET /api/jobs/<job_id>
-```
+## Container security
 
-Returns current job metadata including status, timestamps, and worker assignment.
+Flags added by `DockerRuntime.run_container()` for every job:
 
-### Get Job Result
+| Flag | Value |
+|------|-------|
+| `--runtime <type>` | Only when the runtime type is not `runc` (e.g. `kata`) |
+| `--read-only` | Read-only root filesystem |
+| `--user nobody` | Unprivileged user |
+| `--cap-drop ALL` | No Linux capabilities |
+| `--memory` | `default_memory_limit` (512m) |
+| `--cpus` | `default_cpu_limit` (1) |
+| `--network none` | No network |
+| `--security-opt no-new-privileges` | No privilege escalation |
+| `--pids-limit 256` | Process limit |
 
-```http
-GET /api/jobs/<job_id>/result
-```
+The image registry is checked at submission (API) and again in the worker. A reference without a registry host (`python:3.11`, `library/python`) counts as `docker.io`; the host part (port stripped) of `ghcr.io/org/app`, `registry.example.com:5000/app` or `localhost/...` is compared to the whitelist.
 
-Returns stdout, stderr, and exit code for completed jobs.
+### Runtime type (`runc` / `kata`)
 
-### Cancel a Job
-
-```http
-POST /api/jobs/<job_id>/cancel
-```
-
-Cancels a pending or running job. Running containers are stopped gracefully.
-
-### Job Metrics (Admin only)
-
-```http
-GET /api/jobs/metrics
-```
-
-Returns aggregated statistics: total jobs, jobs by status, average execution time.
+The worker reads the top-level `runtime_type` key from the `configuration` table **once at startup** (`resolve_runtime_type()`), sanitised by `_sanitize_runtime_type()` to `runc` or `kata` (anything else, or a DB error, gives `runc`). Admins change it in **Settings → Container Runtime Type**; restart the worker to apply. `kata` requires the Kata runtime registered in Docker (done by `init_pltf.sh`, see [SHARE_GPU_DOCKER.md](SHARE_GPU_DOCKER.md#container-runtime-runc--kata)).
 
 ---
 
 ## Configuration
 
-Default settings are defined in `src/serverless/config.py` (the `SERVERLESS_CONFIG` dict the worker loads). Operator-facing runtime overrides live in `conf/serverless.ini` and take effect on worker restart. The container runtime type (`runc` default, `kata` optional) is resolved separately from the database `configuration` table, read once at worker startup (a restart is required to change it).
+Effective values come from `SERVERLESS_CONFIG` in `src/serverless/config.py`:
 
-Default values:
+| Key | Default | Used by |
+|-----|---------|---------|
+| `registry_whitelist` | `docker.io`, `ghcr.io`, `registry.example.com` | API + worker |
+| `default_timeout` | 300 s | API (when `timeout` omitted) |
+| `max_timeout` | 3600 s | Not read; the API and DB `CHECK` hard-code 1–3600 |
+| `default_memory_limit` | `512m` | Worker |
+| `default_cpu_limit` | `1` | Worker |
+| `poll_interval` | 0.5 s | Worker idle sleep |
+| `container_stop_timeout` | 10 s | Worker (timeout stop) |
+| `max_concurrent_jobs`, `log_retention_days`, `warm_pool_enabled`, `warm_pool_size` | 100, 30, false, 0 | Defined but not used by the code |
 
-|         Parameter        |                 Default                  |       Description         |
-|--------------------------|------------------------------------------|---------------------------|
-| `registry_whitelist`     | docker.io, ghcr.io, registry.example.com | Approved image registries |
-| `default_timeout`        | 300s                                     | Default job timeout       |
-| `max_timeout`            | 3600s                                    | Maximum allowed timeout   |
-| `default_memory_limit`   | 512m                                     | Container memory limit    |
-| `default_cpu_limit`      | 1                                        | Container CPU limit       |
-| `max_concurrent_jobs`    | 100                                      | Maximum concurrent jobs   |
-| `log_retention_days`     | 30                                       | Days to retain job logs   |
-| `poll_interval`          | 0.5s                                     | Queue polling interval    |
-| `container_stop_timeout` | 10s                                      | Graceful stop timeout     |
+`conf/serverless.ini` mirrors these values with comments, but **no code reads it**: edit `src/serverless/config.py` to change behaviour.
+
+Log retention is hard-coded to 30 days in `cleanup_old_logs()`: it deletes `serverless_job_logs` rows older than 30 days and terminal `serverless_jobs` whose `completed_at` is older than 30 days. The worker runs it at startup and then every 24 h.
 
 ---
 
-## Worker Service
-
-The worker runs as a standalone process that can be scaled horizontally:
+## Worker
 
 ```bash
-python -m src.serverless.worker
+# Foreground (from the repo root)
+python3 -m src.serverless.worker
+
+# As a systemd service
+sudo scripts/install_worker_service.sh          # copy unit, daemon-reload, enable
+sudo scripts/install_worker_service.sh --start  # … and start it
+systemctl status serverless-worker.service
 ```
 
-### Environment Variables
+The worker is not started by `start_app.sh` or `controller_cli.py`; install or launch it separately.
 
-|       Variable      |           Default         |        Description       |
-|---------------------|---------------------------|--------------------------|
-| `WORKER_ID`         | `worker-<hostname>-<pid>` | Unique worker identifier |
-| `POSTGRES_HOST`     | localhost                 | Database host            |
-| `POSTGRES_PORT`     | 5432                      | Database port            |
-| `POSTGRES_DB`       | ai_swautomorph            | Database name            |
-| `POSTGRES_USER`     | swautomorph               | Database user            |
-| `POSTGRES_PASSWORD` | swautomorph_password      | Database password        |
+`systemd/serverless-worker.service` is a **static** unit: `User=psmc`, `WorkingDirectory=/home/ubuntu/agentic-ai-plateform`, `PYTHONPATH` set to the same path, `WORKER_ID=worker-001`, `Restart=always`. Edit it to match your install user and path before installing.
 
-### Features
+Environment variables:
 
-- **Horizontal scaling** — Multiple workers can run concurrently; `SKIP LOCKED` ensures no duplicate job processing.
-- **Graceful shutdown** — Handles `SIGTERM` and `SIGINT` for clean shutdown.
-- **Automatic log cleanup** — Removes old logs/jobs every 24 hours based on `log_retention_days`.
-- **Rotating log files** — Worker logs are rotated at 10 MB with 5 backup files.
-- **Runtime auto-detection** — Automatically detects Docker or Podman on the host.
+| Variable | Default |
+|----------|---------|
+| `WORKER_ID` | `worker-<hostname>-<pid>` |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5432` |
+| `POSTGRES_DB` | `ai_swautomorph` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` | `swautomorph` / `swautomorph_password` |
+
+Behaviour:
+
+- Runtime detection: `docker` if `docker --version` works, else `podman`; exits if neither.
+- Several workers can run in parallel (`SKIP LOCKED` prevents double claims); one worker runs one job at a time.
+- `SIGTERM`/`SIGINT` stop the loop after the current job.
+- Logs: `logs/serverless_worker.log` (rotating, 10 MB × 5) plus stdout. API logs: `logs/serverless_routes.log`.
 
 ---
 
-## GPU-Accelerated Jobs
+## Database
 
-When a server has **MIG Shared GPU** enabled, serverless jobs can access isolated GPU partitions via the `--gpus` Docker flag. This enables:
+Created at DB init from `migration/add_serverless_jobs.sql` and `migration/add_target_link_to_serverless_jobs.sql`:
 
-- **AI/ML Inference** — Run model inference on dedicated GPU slices
-- **Training Jobs** — Execute training workloads with guaranteed GPU memory
-- **Multi-tenant GPU** — Each job gets its own isolated MIG instance
-
-### GPU Job Flow
-
-1. Admin enables MIG shared GPU on a server (via `/api/servers/<id>/gpu/enabled`)
-2. Admin creates MIG instances (e.g., 1g.10gb partitions)
-3. Workers on that server can assign GPU slices to containers
-4. Each container sees only its allocated GPU partition
-
-> **Note**: GPU access requires the server to have `shared_gpu_enabled = true` and active MIG instances. See the [MIG Shared GPU](#) documentation for setup instructions.
+| Table | Key columns |
+|-------|-------------|
+| `serverless_jobs` | `id` UUID, `user_id`, `image`, `command` JSONB, `environment` JSONB, `timeout_seconds` (1–3600), `status`, `created_at`, `started_at`, `completed_at`, `exit_code`, `worker_id`, `target_link` |
+| `serverless_job_logs` | `job_id` (cascade), `stream` (`stdout`/`stderr`), `content`, `created_at` |
+| `serverless_job_results` | `job_id` (PK, cascade), `result` JSONB |
 
 ---
 
-## Use Cases
+## Dashboard (🚀 Serverless tab)
 
-- **CI/CD Pipelines** — Run build, test, and linting steps in isolated containers.
-- **Data Processing** — Execute batch data transformations without dedicated infrastructure.
-- **Scheduled Tasks** — Run periodic jobs (cron-like) with full isolation and resource limits.
-- **AI/ML Workloads** — Submit model training or inference jobs with GPU acceleration via MIG partitions.
-- **Code Execution** — Safely run user-submitted code in sandboxed containers.
-- **GPU Inference** — Run AI model inference on isolated GPU slices without managing GPU infrastructure.
-
----
-
-## Français
-
-## Vue d'ensemble
-
-Le module d'Orchestration Serverless fournit une exécution de conteneurs Docker à la demande, éphémère et gérée. Les utilisateurs soumettent des jobs en spécifiant une image conteneur et une commande ; la plateforme gère la planification, l'exécution, l'isolation de sécurité, l'application des délais, la capture des logs et le stockage des résultats — le tout sans que les utilisateurs aient besoin de gérer leur propre infrastructure.
+- **Endpoints panel** – table of `/api/serverless-links` with AVAILABLE / OCCUPIED badges; OCCUPIED endpoints are disabled in the target dropdown.
+- **Metrics panel** – `/api/jobs/metrics` (admin only).
+- **Submit form** – target endpoint, image, command, env JSON, timeout (1–3600). Each non-empty line of the command box becomes **one element** of the `command` argv array, not one shell command. For example, enter `python`, `-c`, `print(1)` on three lines; a single line `python -c "print(1)"` is used by the local worker as a single executable name.
+- **Jobs table** – ID, image, target, status, created; actions to view result and cancel.
+- While the tab is open, jobs, metrics and endpoints refresh every 5 s.
 
 ---
 
-## Architecture
+## GPU
 
-```
-┌───────────────┐       ┌────────────────┐       ┌──────────────────┐
-│   API REST    │──────▶│  PostgreSQL    │◀──────│  Service Worker  │
-│  /api/jobs    │       │  (File d'att.) │       │  (Poll & Exécute)│
-└───────────────┘       └────────────────┘       └────────┬─────────┘
-                                                          │
-                                                          ▼
-                                                 ┌──────────────────┐
-                                                 │  Runtime Conteneur│
-                                                 │ (Docker / Podman) │
-                                                 └──────────────────┘
-```
-
-### Composants
-
-| Composant | Rôle |
-|-----------|------|
-| **API REST** | Accepte les soumissions de jobs, retourne le statut et les résultats |
-| **File d'attente PostgreSQL** | Stocke les jobs avec machine d'état (pending → running → completed/failed/timeout/cancelled) |
-| **Service Worker** | Interroge la file, réclame les jobs, exécute les conteneurs, capture la sortie |
-| **Runtime Conteneur** | Couche abstraite supportant Docker et Podman avec sécurisation complète |
-
----
-
-## Cycle de vie d'un Job
-
-1. **Soumission** — L'utilisateur envoie une requête `POST /api/jobs` avec l'image, la commande, les variables d'env optionnelles et le timeout.
-2. **En file d'attente** — Le job est stocké dans PostgreSQL avec le statut `pending`.
-3. **Réclamé** — Un worker interroge la file via `FOR UPDATE SKIP LOCKED` et passe le statut à `running`.
-4. **Exécution** — Le worker télécharge l'image, démarre le conteneur avec les contraintes de sécurité et attend la fin.
-5. **Terminaison** — Stdout/stderr sont capturés et stockés. Le job est marqué `completed`, `failed` ou `timeout`.
-6. **Annulation** — Les utilisateurs peuvent annuler les jobs `pending` ou `running` via `POST /api/jobs/<id>/cancel`.
-
----
-
-## Modèle de sécurité
-
-Chaque conteneur s'exécute avec une isolation stricte :
-
-| Contrainte | Description |
-|------------|-------------|
-| `--read-only`                      | Système de fichiers racine en lecture seule     |
-| `--user nobody`                    | Exécution en tant qu'utilisateur non privilégié |
-| `--cap-drop ALL`                   | Toutes les capacités Linux sont retirées        |
-| `--network none`                   | Pas d'accès réseau par défaut                   |
-| `--security-opt no-new-privileges` | Empêche l'escalade de privilèges                |
-| `--pids-limit 256`                 | Limite le nombre de processus                   |
-| `--memory`                         | Limite mémoire (défaut 512 Mo)                  |
-| `--cpus`                           | Limite CPU (défaut 1 cœur)                      |
-| **Liste blanche de registres**     | Seuls les registres approuvés sont autorisés    |
-
----
-
-## Référence API
-
-### Soumettre un Job
-
-```http
-POST /api/jobs
-Content-Type: application/json
-
-{
-  "image": "python:3.11-slim",
-  "command": ["python", "-c", "print('Bonjour depuis serverless!')"],
-  "env": {"MA_VAR": "valeur"},
-  "timeout": 60
-}
-```
-
-### Lister les Jobs
-
-```http
-GET /api/jobs?page=1&per_page=20&status=completed
-```
-
-### Obtenir le statut d'un Job
-
-```http
-GET /api/jobs/<job_id>
-```
-
-### Obtenir le résultat d'un Job
-
-```http
-GET /api/jobs/<job_id>/result
-```
-
-### Annuler un Job
-
-```http
-POST /api/jobs/<job_id>/cancel
-```
-
-### Métriques des Jobs (Admin uniquement)
-
-```http
-GET /api/jobs/metrics
-```
-
----
-
-## Cas d'utilisation
-
-- **Pipelines CI/CD** — Exécuter des étapes de build, test et linting dans des conteneurs isolés.
-- **Traitement de données** — Exécuter des transformations batch sans infrastructure dédiée.
-- **Tâches planifiées** — Exécuter des jobs périodiques avec isolation complète et limites de ressources.
-- **Charges IA/ML** — Soumettre des jobs d'entraînement ou d'inférence avec accélération GPU via partitions MIG.
-- **Exécution de code** — Exécuter en toute sécurité du code soumis par l'utilisateur dans des conteneurs sandboxés.
-- **Inférence GPU** — Exécuter l'inférence de modèles IA sur des tranches GPU isolées sans gérer l'infrastructure GPU.
+Serverless jobs do not request GPUs: the worker never passes `--gpus`. MIG partitions managed by the platform (see [SHARE_GPU_DOCKER.md](SHARE_GPU_DOCKER.md)) are not attached to serverless jobs.

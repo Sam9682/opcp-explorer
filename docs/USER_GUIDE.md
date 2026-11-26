@@ -1,581 +1,416 @@
-# 🤖 AI-SwAutoMorph User Guide / Guide Utilisateur AI-SwAutoMorph
+# OPCP-explorer User Guide
 
-## English
+This guide explains how to use the OPCP-explorer web dashboard. The name shown in the
+navigation bar is configurable (`PLTF_NAME` in `conf/deploy.ini`, default
+`agentic-ai-plateform`), so your instance may display a different name.
 
-<div class="center">
-🚀 **Centralized Application Deployment Platform for GenAI Agents** 🌟
-</div>
+In the examples, `https://<DOMAIN>` is the address of your platform.
 
-### 📋 Table of Contents
-- [🌟 Overview](#overview)
-- [🤖 Virtual AI Agents](#virtual-ai-agents)
-- [🔧 AI Chat Developer Agent](#q-chat-developer-agent)
-- [🚀 AI Chat Operations Agent](#q-chat-operations-agent)
-- [⚡ Agent Workflows](#agent-workflows)
-- [🎯 Platform Features](#platform-features)
-- [💰 Billing System](#billing-system)
-- [🔧 Troubleshooting](#troubleshooting)
-
-### 🌟 Overview
-
-AI-SwAutoMorph is a **centralized application deployment and management platform** designed for GenAI agents. It provides automated deployment, lifecycle management, and SSO authentication for web applications through multiple interfaces (Web, CLI, API, MCP). The platform enables GenAI agents to autonomously deploy, manage, and access web applications without human intervention.
-
-**Core Purpose**: Enable GenAI agents to autonomously deploy, manage, and access web applications through intelligent automation with comprehensive billing tracking and multi-server support.
-
-<div class="center">
-🎯 **Key Features**: Virtual AI Agents, Multi-Server Deployment, Billing & Cost Tracking, SSO Authentication, ModSecurity WAF Protection
-</div>
-
-### 🤖 Virtual AI Agents
-
-The platform provides **two specialized virtual AI agents** with context-aware prompts and streaming responses:
-
-#### 🔧 AI Chat Developer Agent
-**🎯 Purpose:** Code modification, feature development, and application enhancement
-
-- 💻 Modifies source code based on natural language requests
-- ⚡ Adds new features and API endpoints
-- 🔄 Refactors and optimizes existing code
-- 🐛 Handles bug fixes and code improvements
-- 🌿 Creates timestamped Git branches with format `{user_id}-automorph-{app_name}-{timestamp}`
-- ⏱️ 30-minute timeout with graceful cleanup
-- 📡 Real-time streaming responses with Server-Sent Events
-
-#### 🚀 AI Chat Operations Agent
-**🎯 Purpose:** Deployment operations, infrastructure management, and application lifecycle
-
-- ⚡ Handles deployment commands (START, STOP, RESTART, PS, LOGS)
-- 📊 Manages application lifecycle and monitoring
-- 🏗️ Performs infrastructure operations with multi-server support
-- 🚀 Executes deployment scripts with user context
-- 📈 Provides real-time status updates and streaming logs
-- 💰 Automatic billing activity recording for START/STOP actions
-- 🔄 Fallback Q&A mode for invalid actions
-
-![Virtual Operations](https://www.swautomorph.com/static/VirtualOperations.png)
-
-### 🔧 AI Chat Developer Agent
-
-#### 🛠️ Agent Capabilities
-- **🔍 Code Analysis:** Understands existing codebase structure
-- **⚡ Feature Development:** Adds new functionality based on requirements
-- **🔌 API Creation:** Generates new REST endpoints and handlers
-- **🔄 Code Refactoring:** Improves code quality and performance
-- **🐛 Bug Resolution:** Identifies and fixes code issues
-- **🌿 Git Integration:** Creates branches with format `{user_id}-automorph-{app_name}-{timestamp}`
-
-#### 🔌 API Endpoint
-```
-POST /api/request_dev_ai_for_app
-```
-
-**📝 Request Body:**
-```json
-{
-  "message": "Add a new API endpoint for user management",
-  "application_name": "MyApp",
-  "application_folder": "/path/to/app",
-  "auto_approve": true,
-  "gitea_url": "http://localhost:3000/gitadmin/branch-name",
-  "userid": "1",
-  "username": "agent"
-}
-```
-
-### 🚀 AI Chat Operations Agent
-
-#### 🛠️ Agent Capabilities
-- **🚀 Deployment Management:** Handles START, STOP, RESTART operations
-- **🏗️ Infrastructure Operations:** Manages servers and resources
-- **📊 Monitoring:** Checks application status and logs
-- **📈 Scaling:** Manages application capacity and performance
-- **🔧 Troubleshooting:** Diagnoses and resolves deployment issues
-- **🖥️ Multi-Server Support:** Automatic server allocation based on capacity
-
-#### 🔌 API Endpoint
-```
-POST /api/request_ops_ai_for_app
-```
-
-**📝 Request Body:**
-```json
-{
-  "message": "[START] Start the application",
-  "application_name": "MyApp",
-  "application_folder": "/path/to/app"
-}
-```
-
-### ⚡ Agent Workflows
-
-#### 1. 🏗️ Application Setup
-- 👤 Register agent user account via `/register` endpoint
-- 📱 Add application with Git repository (admin required)
-- 📥 Clone application to deployment directory
-- 🖥️ Automatic server allocation based on capacity
-
-#### 2. 💻 Development Phase (Developer Agent)
-- 🔍 Analyze existing codebase structure
-- ⚡ Implement new features or fixes using natural language
-- 🌿 Create timestamped Git branches for tracking
-- ⚙️ Modify configuration files and dependencies
-- 🧪 Test deployment with `deployApp.sh`
-
-#### 3. 🚀 Deployment Phase (Operations Agent)
-- ▶️ Start application services with user context
-- 📊 Monitor deployment status with real-time updates
-- 📋 Check application logs and health
-- 🔄 Manage application lifecycle (start/stop/restart)
-- 🖥️ Handle server capacity and resource allocation
-
-### 🎯 Platform Features
-
-#### 🌍 Multi-Language Support
-- **🔄 Navbar Language Toggle:** FR/EN switching in navigation bar
-- **💾 Session Persistence:** Language preference stored in Flask session
-- **📖 Documentation:** All guides available in English and French
-- **⚡ Dynamic Switching:** Real-time language changes without page reload
-- **🎨 Template Integration:** All templates support `get_text()` function
-
-#### 🧭 Enhanced Navigation Architecture
-- **📱 Applications Tab:** Main application management interface with real-time status
-- **💰 Billing Tab:** Comprehensive cost tracking and invoice management
-- **⚙️ Configuration Dropdown:** Admin access to Users, Servers, Database management
-- **❓ Help Dropdown:** Direct access to Architecture, Deployment, and User guides
-- **📱 Mobile Responsive:** Hamburger menu for mobile devices
-- **🌍 Language Toggle:** Persistent language switching in navbar
-
-#### 📊 Enhanced Dashboard Features
-- **⏱️ Real-time Status:** Live application status updates
-- **📈 Streaming Logs:** Server-Sent Events for real-time log viewing
-- **🎴 Application Cards:** Visual interface with status indicators
-- **🔘 Action Buttons:** Clone, Start, Stop, Status, Logs with streaming support
-- **🤖 Unified Virtual Agents:** Single interface for Developer and Operations agents
-- **🖥️ Multi-Server Support:** Automatic server allocation based on capacity
-- **💰 Billing Integration:** Real-time cost tracking and activity logging
-
-#### 🔐 Enhanced Authentication & Security
-- **🔑 Session-based Authentication:** Secure login with session management
-- **🎫 SSO Token Support:** Single Sign-On integration with Gitea
-- **🏠 User Isolation:** Each user gets isolated deployment directories
-- **👑 Admin Controls:** Comprehensive admin interface for system management
-- **🛡️ ModSecurity WAF:** Protection with OWASP CRS rules
-- **🔒 Input Validation:** SQL injection prevention and path traversal protection
-
-#### 🖥️ Multi-Server Architecture
-- **🏗️ Server Management:** Add, configure, and monitor multiple deployment servers
-- **📊 Capacity Management:** Automatic server allocation based on utilization
-- **🔄 Server Status:** STAND_BY, ACTIVE, MAINTENANCE status management
-- **🌐 Remote Deployment:** SSH-based deployment to remote servers
-- **⚖️ Load Balancing:** Intelligent server selection for optimal performance
-
-### 💰 Billing System
-
-#### 📊 Comprehensive Cost Tracking
-- **⏱️ Automatic Activity Recording:** START/STOP actions tracked with precise timestamps
-- **💳 Cost Calculation:** Prorated billing based on actual usage time
-- **📈 Usage Monitoring:** Real-time tracking of application usage
-- **🧾 Invoice Generation:** Automated monthly invoice creation
-- **💰 Payment Modes:** Support for bank transfer, PayPal, and credit cards
-- **📊 Billing Reports:** Detailed usage summaries and activity logs
-
-#### 💳 Billing Features
-- **📅 Period Filtering:** View costs by day, week, month, or previous month
-- **👥 User Filtering:** Admin can filter by specific users
-- **📊 Cost Management:** Configure application-specific daily rates
-- **🧾 Invoice Management:** Generate, view, and mark invoices as paid
-- **📈 Activity Logging:** Detailed logs of all billable activities
-- **💰 Revenue Tracking:** Total revenue and cost summaries
-
-### 🎮 MIG Shared GPU Management
-
-The platform provides GPU sharing through NVIDIA Multi-Instance GPU (MIG) technology, allowing administrators to partition a single GPU into multiple isolated instances.
-
-#### 🖥️ Web Interface
-
-Navigate to **Servers** → click **Shared-GPU** button on any server to access the GPU management page:
-
-1. **Enable/Disable**: Toggle switch to activate MIG mode on the server
-2. **View Profiles**: See available partition sizes (e.g., 1g.10gb, 2g.20gb, 4g.40gb)
-3. **Create Instances**: Select profiles and click "Create Instances" (max 7 per GPU)
-4. **Monitor**: View active MIG instances with UUID, profile, memory, and timestamp
-5. **Destroy**: Remove all instances with one click when reconfiguration is needed
-
-#### 🔌 GPU API Endpoints
-
-All GPU endpoints require admin authentication and use the prefix `/api/servers/<server_id>/gpu`:
-
-```bash
-# Enable shared GPU on a server
-curl -X PUT https://www.swautomorph.com/api/servers/1/gpu/enabled \
-  -H "Content-Type: application/json" \
-  -H "Cookie: session=your-session-cookie" \
-  -d '{"enabled": true}'
-
-# List available MIG profiles
-curl https://www.swautomorph.com/api/servers/1/gpu/profiles \
-  -H "Cookie: session=your-session-cookie"
-
-# Create MIG instances (1-7 profile IDs)
-curl -X POST https://www.swautomorph.com/api/servers/1/gpu/instances \
-  -H "Content-Type: application/json" \
-  -H "Cookie: session=your-session-cookie" \
-  -d '{"profile_ids": ["9", "14", "9"]}'
-
-# List active instances
-curl https://www.swautomorph.com/api/servers/1/gpu/instances \
-  -H "Cookie: session=your-session-cookie"
-
-# Destroy all instances
-curl -X DELETE https://www.swautomorph.com/api/servers/1/gpu/instances \
-  -H "Cookie: session=your-session-cookie"
-```
-
-#### 🐳 Using GPU Instances in Docker
-
-After creating MIG instances, containers can access specific GPU slices:
-
-```bash
-docker run --gpus '"device=MIG-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"' my-ai-model:latest
-```
+Related documents: [Platform Overview](PLATFORM_OVERVIEW.md) ·
+[Architecture Guide](ARCHITECTURE_GUIDE.md) · [Deployment Guide](DEPLOYMENT_GUIDE.md) ·
+[API Reference](API_REFERENCE.md) · [Serverless](SERVERLESS.md) ·
+[Available Applications](LIST_OF_APP_AVAILABLE.md)
 
 ---
 
-### ⚡ Serverless Docker Execution
+## Contents
 
-Submit Docker-based jobs on-demand without managing infrastructure. The platform handles scheduling, execution, security isolation, and result storage.
-
-#### 🔌 Serverless API
-
-```bash
-# Submit a job
-curl -X POST https://www.swautomorph.com/api/jobs \
-  -H "Content-Type: application/json" \
-  -H "Cookie: session=your-session-cookie" \
-  -d '{"image": "python:3.11-slim", "command": ["python", "-c", "print(hello)"], "timeout": 60}'
-
-# Check job status
-curl https://www.swautomorph.com/api/jobs/<job_id> \
-  -H "Cookie: session=your-session-cookie"
-
-# Get job result (stdout/stderr)
-curl https://www.swautomorph.com/api/jobs/<job_id>/result \
-  -H "Cookie: session=your-session-cookie"
-
-# Cancel a job
-curl -X POST https://www.swautomorph.com/api/jobs/<job_id>/cancel \
-  -H "Cookie: session=your-session-cookie"
-
-# List all user jobs
-curl https://www.swautomorph.com/api/jobs?page=1&per_page=20 \
-  -H "Cookie: session=your-session-cookie"
-```
-
-#### 📊 Job States
-- `pending` — Queued, waiting for a worker
-- `running` — Being executed in a container
-- `completed` — Finished successfully
-- `failed` — Container exited with non-zero code
-- `timeout` — Exceeded the configured timeout
-- `cancelled` — Cancelled by user
+1. [Accounts and sign-in](#1-accounts-and-sign-in)
+2. [Account security: password and 2FA](#2-account-security-password-and-2fa)
+3. [Navigation and language](#3-navigation-and-language)
+4. [Applications tab](#4-applications-tab)
+5. [Virtual AI agents](#5-virtual-ai-agents)
+6. [MAKE App. Compliant](#6-make-app-compliant)
+7. [Serverless tab](#7-serverless-tab)
+8. [Marketplace tab](#8-marketplace-tab)
+9. [Sandbox tab](#9-sandbox-tab)
+10. [Billing tab](#10-billing-tab)
+11. [Administration (admin only)](#11-administration-admin-only)
+12. [Troubleshooting](#12-troubleshooting)
 
 ---
 
-### 🧩 Deploy Templates
+## 1. Accounts and sign-in
 
-The platform ships a catalog of ready-to-deploy blueprints. Every surface (Dashboard, CLI, MCP, REST) deploys through the same service, so behavior is identical everywhere. Deployed apps are exposed at `https://{domain}/{USER_ID}/{APPLICATION_NAME}`.
+### Register
 
-Built-in templates: `static-site` (nginx), `fastapi-starter`, `n8n`, `ollama`, `jupyter`, `vector-db` (Qdrant).
+1. Open `https://<DOMAIN>/` and click the **register** link under the login form
+   (or go to `https://<DOMAIN>/register`).
+2. Fill in username (letters and digits only), email, optional first and last name,
+   and password (entered twice).
+3. Submit. The account is created **suspended**: you cannot sign in until an
+   administrator unsuspends it from the **Users** page.
 
-```bash
-# List available templates
-curl https://www.swautomorph.com/api/templates -H "Cookie: session=your-session-cookie"
+### Sign in
 
-# Deploy from a template
-curl -X POST https://www.swautomorph.com/api/templates/fastapi-starter/deploy -H "Content-Type: application/json" -H "Cookie: session=your-session-cookie" -d '{"application_name":"my-api"}'
-```
+1. Enter your username and password on the login page.
+2. If two-factor authentication (2FA) is enabled on your account, a second step
+   appears. Choose **Authenticator App** or **Email Code** (only the methods you have
+   enabled are shown), enter the code and click **Verify**.
+3. You land on the dashboard (`/dashboard`).
 
-### 🛡️ Container Runtime
+Sign-in fails if the password is wrong or if the account is suspended.
 
-Admins can choose the container runtime from the Settings page: `runc` (default, shares the host kernel) or `kata` (optional, each container in its own MicroVM). The choice applies to app deployments, serverless jobs, and orchestrator replicas; serverless workers pick up a change on restart.
+At sign-in the platform also issues an SSO token, valid for one week. The platform
+uses it to sign you in to deployed applications that support it (see
+[API Reference](API_REFERENCE.md), `/sso/*` endpoints).
 
-### 🧙 Onboarding Wizard and 🧪 Sandbox
-
-On first run, a guided setup wizard writes `conf/deploy.ini` safely (timestamped backup, atomic write, hashed admin password). A labeled Sandbox demo account lets you try the platform with throwaway deployments that do not affect real data.
-
-### 🔧 Troubleshooting
-
-#### 🚫 Authentication Failures
-- ✅ Verify session cookies are included in requests
-- 👤 Check if user account has appropriate permissions
-- 🎫 Ensure SSO token is valid and not expired
-- ⚠️ Confirm user account is not suspended (suspended=0)
-- 🔐 Verify password hash is correct in database
-
-#### 🔧 Developer Agent Issues
-- 📁 Verify application folder path exists and is accessible
-- 🔒 Check if application has proper file permissions
-- 🌿 Ensure Git repository is accessible and credentials are valid
-- 🖥️ Confirm AI Chat is installed and accessible in PATH
-- ⏱️ Check for timeout issues (30-minute limit)
-- 📝 Verify context files exist in shared/ directory
-
-#### 🚀 Operations Agent Issues
-- ⚙️ Check if deployment scripts (`deployApp.sh`) are executable
-- 🐳 Verify Docker services are running on target server
-- 💾 Ensure server has sufficient resources (CPU, memory, disk)
-- 🌐 Confirm network connectivity between servers
-- 🖥️ Verify server status is STAND_BY or ACTIVE
-- 💰 Check billing activity recording for START/STOP actions
-
-#### 🌍 Language Switching Issues
-- 🗑️ Clear browser cache and cookies
-- 🔄 Check Flask session is properly maintained
-- 💾 Verify language preference is stored in session
-- ⚡ Ensure JavaScript is enabled for dynamic content switching
-- 🎨 Confirm template integration with get_text() function
-
-#### 💰 Billing Issues
-- 📊 Check application_costs table for cost configuration
-- ⏱️ Verify billing_activities table for activity records
-- 🧾 Confirm invoice generation for specific months
-- 💳 Check payment_modes table for user payment methods
-- 📈 Verify cost calculation logic and duration tracking
-
-#### 🔍 Debug Commands
-```bash
-# 🔍 Check authentication status
-curl https://www.swautomorph.com/api/auth/status
-
-# 📱 Verify applications
-curl https://www.swautomorph.com/api/applications
-
-# 🖥️ Check server capacity and allocation
-curl https://www.swautomorph.com/api/servers
-
-# 💰 Check billing activities
-curl https://www.swautomorph.com/api/billing/activities
-
-# 🗄️ Database health check (admin only)
-curl https://www.swautomorph.com/api/health/database
-
-# 🧪 Test developer agent
-curl -X POST /api/request_dev_ai_for_app \
-  -H "Content-Type: application/json" \
-  -H "Cookie: session=your-session-cookie" \
-  -d '{"message":"test connection","application_name":"test"}'
-
-# 🧪 Test operations agent
-curl -X POST /api/request_ops_ai_for_app \
-  -H "Content-Type: application/json" \
-  -H "Cookie: session=your-session-cookie" \
-  -d '{"message":"[START] test","application_name":"test"}'
-
-# 🎮 Check GPU status on a server
-curl https://www.swautomorph.com/api/servers/1/gpu/instances \
-  -H "Cookie: session=your-session-cookie"
-
-# ⚡ Check serverless job metrics (admin)
-curl https://www.swautomorph.com/api/jobs/metrics \
-  -H "Cookie: session=your-session-cookie"
-```
+**Log out** with the link at the right of the navigation bar.
 
 ---
 
-## Français
+## 2. Account security: password and 2FA
 
-<div class="center">
-🚀 **Agents IA Autonomes pour la Gestion d'Applications Web** 🌟
-</div>
+Open the 🔐 icon in the navigation bar. Every signed-in user has this tab.
 
-### 📋 Table des Matières
-- [🌟 Aperçu pour les Agents IA](#aperçu-pour-les-agents-ia)
-- [🤖 Types d'Agents IA](#types-dagents-ia)
-- [🔧 Agent Développeur AI Chat](#agent-développeur-q-chat)
-- [🚀 Agent Opérations AI Chat](#agent-opérations-q-chat)
-- [⚡ Flux de Travail des Agents](#flux-de-travail-des-agents)
-- [🎯 Fonctionnalités de la Plateforme](#fonctionnalités-de-la-plateforme)
-- [🔧 Dépannage](#dépannage)
+### Change password
 
-### 🌟 Aperçu
+Enter your current password, then the new password twice (minimum 6 characters), and
+click **Change password**.
 
-AI-SwAutoMorph est une **plateforme centralisée de déploiement et de gestion d'applications** conçue pour les agents GenAI. Elle fournit un déploiement automatisé, une gestion du cycle de vie et une authentification SSO pour les applications web à travers plusieurs interfaces (Web, CLI, API, MCP). La plateforme permet aux agents GenAI de déployer, gérer et accéder de manière autonome aux applications web sans intervention humaine.
+### Reset password by email
 
-**Objectif Principal**: Permettre aux agents GenAI de déployer, gérer et accéder de manière autonome aux applications web grâce à l'automatisation intelligente avec suivi complet de facturation et support multi-serveurs.
+On the same form, **Reset via email** sends a reset link to the address on your
+account. The link is valid for **1 hour** and opens `/security/password-reset/<token>`,
+where you choose a new password.
 
-<div class="center">
-🎯 **Fonctionnalités Clés**: Agents IA Virtuels, Déploiement Multi-Serveurs, Suivi de Facturation et Coûts, Authentification SSO, Protection ModSecurity WAF
-</div>
+The login page has no "forgot password" link. If you cannot sign in, ask an
+administrator to use **Reset Password** on the Users page, which sends you the same
+email. If email delivery fails (SMTP not configured), the administrator sees the reset
+link and can pass it to you.
 
-### 🤖 Types d'Agents IA
+### Two-factor authentication
 
-#### 🔧 Agent Développeur AI Chat
-**🎯 Objectif:** Modification de code, développement de fonctionnalités et amélioration d'applications
-
-- 💻 Modifie le code source basé sur des demandes en langage naturel
-- ⚡ Ajoute de nouvelles fonctionnalités et points de terminaison API
-- 🔄 Refactorise et optimise le code existant
-- 🐛 Gère les corrections de bugs et améliorations de code
-- 🌿 Crée des branches Git horodatées pour le suivi des modifications
-
-#### 🚀 Agent Opérations AI Chat
-**🎯 Objectif:** Opérations de déploiement, gestion d'infrastructure et cycle de vie des applications
-
-- ⚡ Gère les commandes de déploiement (START, STOP, RESTART)
-- 📊 Gère le cycle de vie et la surveillance des applications
-- 🏗️ Effectue les opérations d'infrastructure
-- 🚀 Exécute les scripts et configurations de déploiement
-- 📈 Fournit des mises à jour de statut en temps réel et journaux en streaming
-
-![Virtual Operations](https://www.swautomorph.com/static/VirtualOperations.png)
-
-### 🔧 Agent Développeur AI Chat
-
-#### 🛠️ Capacités de l'Agent
-- **🔍 Analyse de Code:** Comprend la structure de la base de code existante
-- **⚡ Développement de Fonctionnalités:** Ajoute de nouvelles fonctionnalités basées sur les exigences
-- **🔌 Création d'API:** Génère de nouveaux points de terminaison REST et gestionnaires
-- **🔄 Refactorisation de Code:** Améliore la qualité et les performances du code
-- **🐛 Résolution de Bugs:** Identifie et corrige les problèmes de code
-- **🌿 Intégration Git:** Crée des branches avec format `{user_id}-automorph-{app_name}-{timestamp}`
-
-#### 🔌 Point de Terminaison API
-```
-POST /api/request_dev_ai_for_app
-```
-
-**📝 Corps de Requête:**
-```json
-{
-  "message": "Ajouter un nouveau point de terminaison API pour la gestion des utilisateurs",
-  "application_name": "MonApp",
-  "application_folder": "/chemin/vers/app",
-  "auto_approve": true,
-  "gitea_url": "http://localhost:3000/gitadmin/branch-name",
-  "userid": "1",
-  "username": "agent"
-}
-```
-
-### 🚀 Agent Opérations AI Chat
-
-#### 🛠️ Capacités de l'Agent
-- **🚀 Gestion de Déploiement:** Gère les opérations START, STOP, RESTART
-- **🏗️ Opérations d'Infrastructure:** Gère les serveurs et ressources
-- **📊 Surveillance:** Vérifie le statut et les journaux des applications
-- **📈 Mise à l'Échelle:** Gère la capacité et les performances des applications
-- **🔧 Dépannage:** Diagnostique et résout les problèmes de déploiement
-- **🖥️ Support Multi-Serveurs:** Allocation automatique de serveur basée sur la capacité
-
-#### 🔌 Point de Terminaison API
-```
-POST /api/request_ops_ai_for_app
-```
-
-**📝 Corps de Requête:**
-```json
-{
-  "message": "[START] Démarrer l'application",
-  "application_name": "MonApp",
-  "application_folder": "/chemin/vers/app"
-}
-```
-
-### ⚡ Flux de Travail des Agents
-
-#### 1. 🏗️ Configuration de l'Application
-- 👤 Enregistrer le compte utilisateur agent via le point de terminaison `/register`
-- 📱 Ajouter l'application avec le dépôt Git (admin requis)
-- 📥 Cloner l'application vers le répertoire de déploiement
-- 🖥️ Allocation automatique de serveur basée sur la capacité
-
-#### 2. 💻 Phase de Développement (Agent Développeur)
-- 🔍 Analyser la structure de la base de code existante
-- ⚡ Implémenter de nouvelles fonctionnalités ou corrections en langage naturel
-- 🌿 Créer des branches Git horodatées pour le suivi
-- ⚙️ Modifier les fichiers de configuration et dépendances
-- 🧪 Tester le déploiement avec `deployApp.sh`
-
-#### 3. 🚀 Phase de Déploiement (Agent Opérations)
-- ▶️ Démarrer les services d'application avec contexte utilisateur
-- 📊 Surveiller le statut de déploiement avec mises à jour temps réel
-- 📋 Vérifier les journaux et la santé de l'application
-- 🔄 Gérer le cycle de vie de l'application (start/stop/restart)
-- 🖥️ Gérer la capacité serveur et l'allocation des ressources
-
-### 🎯 Fonctionnalités de la Plateforme
-
-#### 🌍 Support Multi-Langues
-- **🔄 Basculement Langue Navbar:** Changement FR/EN dans la barre de navigation
-- **💾 Persistance Session:** Préférence de langue stockée dans la session utilisateur
-- **📖 Documentation:** Tous les guides disponibles en Anglais et Français
-- **⚡ Changement Dynamique:** Modifications de langue temps réel sans rechargement de page
-
-#### 🧭 Organisation de Navigation
-- **📱 Onglet Applications:** Interface principale de gestion d'applications
-- **💰 Onglet Facturation:** Suivi des coûts et surveillance d'utilisation
-- **⚙️ Menu Déroulant Configuration:** Accès admin aux Utilisateurs, Serveurs, Base de données
-- **❓ Menu Déroulant Aide:** Accès direct aux guides Architecture, Déploiement et Utilisateur
-- **📱 Responsive Mobile:** Menu hamburger pour appareils mobiles
-
-### 🎮 Gestion GPU Partagé MIG
-
-La plateforme permet le partage GPU via la technologie NVIDIA Multi-Instance GPU (MIG), permettant aux administrateurs de partitionner un seul GPU en plusieurs instances isolées.
-
-#### 🖥️ Interface Web
-
-Naviguer vers **Serveurs** → cliquer sur **Shared-GPU** pour accéder à la page de gestion GPU :
-
-1. **Activer/Désactiver**: Interrupteur pour activer le mode MIG sur le serveur
-2. **Voir les Profils**: Tailles de partition disponibles (ex: 1g.10gb, 2g.20gb, 4g.40gb)
-3. **Créer des Instances**: Sélectionner des profils et cliquer "Créer" (max 7 par GPU)
-4. **Surveiller**: Voir les instances MIG actives avec UUID, profil, mémoire et timestamp
-5. **Détruire**: Supprimer toutes les instances en un clic pour reconfiguration
-
-### ⚡ Exécution Docker Serverless
-
-Soumettre des jobs Docker à la demande sans gérer l'infrastructure. La plateforme gère la planification, l'exécution, l'isolation de sécurité et le stockage des résultats.
-
-#### 📊 États des Jobs
-- `pending` — En file d'attente
-- `running` — En cours d'exécution dans un conteneur
-- `completed` — Terminé avec succès
-- `failed` — Conteneur terminé avec code non-zéro
-- `timeout` — Délai configuré dépassé
-- `cancelled` — Annulé par l'utilisateur
+- **Authenticator app (TOTP).** Click **Set up authenticator** and scan the QR code
+  with an app such as Google Authenticator, Authy or FreeOTP. Enter a code to confirm.
+  You then get **8 single-use backup codes**. Store them safely: each one can replace an
+  authenticator code once at login.
+- **Email verification.** Click **Enable email 2FA**. At each login a code is emailed
+  to you, valid for **5 minutes**.
+- **Disable 2FA.** Enter your password and click **Disable 2FA**. This turns off both
+  methods. An administrator can also disable 2FA for a user from the Users page.
 
 ---
 
-### 🧩 Deploy Templates
+## 3. Navigation and language
 
-La plateforme fournit un catalogue de blueprints prets a deployer. Chaque surface (Dashboard, CLI, MCP, REST) deploie via le meme service, donc le comportement est identique partout. Les apps deployees sont exposees sur `https://{domain}/{USER_ID}/{APPLICATION_NAME}`.
+The top navigation bar contains:
 
-Templates integres : `static-site` (nginx), `fastapi-starter`, `n8n`, `ollama`, `jupyter`, `vector-db` (Qdrant).
+| Item | Who | Purpose |
+|------|-----|---------|
+| Applications | everyone | Your applications and their lifecycle buttons |
+| 🚀 Serverless | everyone | Submit and monitor serverless Docker jobs |
+| 🛒 Marketplace | everyone | Deploy ready-made templates |
+| 🧪 Sandbox | everyone | Demo environment |
+| Billing | everyone | Usage, costs and invoices |
+| 🔐 | everyone | Account security |
+| Configuration ▼ | admins | Users, Servers, Applications Management, Deployments Management, Orchestrator, Database Management, Settings |
+| Help ▼ | everyone | Architecture Guide, Deployment Guide, User Guide, Available Applications, Serverless, Share GPU Docker, Platform Overview |
 
-### 🛡️ Runtime de Conteneur
+- **Language:** the **EN** / **FR** buttons at the right switch the interface
+  language. Your choice is kept in your session. The dashboard defaults to French until
+  you choose a language.
+- **Layout:** the 🖥️ / 📱 button switches the dashboard between vertical and
+  horizontal layouts (where the virtual agents panel sits).
+- **Mobile:** on narrow screens the ☰ button opens the same menu.
 
-Les admins choisissent le runtime depuis la page Settings : `runc` (defaut, partage le noyau hote) ou `kata` (optionnel, chaque conteneur dans sa propre MicroVM). Le choix s applique aux deploiements, jobs serverless et repliques orchestrateur ; les workers serverless prennent en compte un changement au redemarrage.
+---
 
-### 🧙 Assistant d Onboarding et 🧪 Sandbox
+## 4. Applications tab
 
-Au premier demarrage, un assistant guide ecrit `conf/deploy.ini` en securite (sauvegarde horodatee, ecriture atomique, mot de passe admin hache). Un compte demo Sandbox permet de tester la plateforme avec des deploiements jetables sans impacter les donnees reelles.
+### What you see
 
-### 🔧 Dépannage
+The **Applications** table lists the applications assigned to you. Each row shows:
 
-#### 🚫 Échecs d'Authentification
-- ✅ Vérifier que les cookies de session sont inclus dans les requêtes
-- 👤 Vérifier si le compte agent a les permissions appropriées
-- 🎫 S'assurer que le token SSO est valide et non expiré
-- ⚠️ Confirmer que le compte utilisateur n'est pas suspendu
+- ID, name and description;
+- **Gitea branch**: a drop-down of the branches you can clone (the original repository
+  and the branches created by the Virtual Developer);
+- **Local active version**: the version currently cloned for you;
+- action buttons.
 
-#### 🔧 Problèmes de l'Agent Développeur
-- 📁 Vérifier que le chemin du dossier d'application existe et est accessible
-- 🔒 Vérifier si l'application a les permissions de fichier appropriées
-- 🌿 S'assurer que le dépôt Git est accessible et les identifiants sont valides
-- 🖥️ Confirmer que le serveur Gitea fonctionne et est accessible
+If you are not an administrator, a second table, **Available applications**, lists
+applications that exist on the platform but are not assigned to you (🔒). Use 👁️ to view
+their details, and ask an administrator to assign the ones you need.
 
-#### 🚀 Problèmes de l'Agent Opérations
-- ⚙️ Vérifier si les scripts de déploiement (`deployApp.sh`) sont exécutables
-- 🐳 Vérifier que les services Docker fonctionnent sur le serveur cible
-- 💾 S'assurer que le serveur a suffisamment de ressources (CPU, mémoire, disque)
-- 🌐 Confirmer la connectivité réseau entre serveurs
+### Action buttons
+
+All users see every lifecycle button on applications assigned to them:
+
+| Button | Action |
+|--------|--------|
+| 🔗 Open | Opens the application URL in a new tab |
+| 📥 Clone | Clones the branch selected in the **Gitea branch** drop-down |
+| ▶️ Start | Runs `deployApp.sh start` for your copy |
+| ⏹️ Stop | Runs `deployApp.sh stop` |
+| 🔄 Restart | Runs `deployApp.sh restart` |
+| 📊 | Status (`ps`) |
+| 📋 | Logs |
+| 💾 / ♻️ | Database backup / restore. 💾 is shown while the application is running |
+| 👁️ | View details (non-admins) |
+| ✏️ / 🗑️ | Edit / delete the application (admins only) |
+
+The Clone and lifecycle buttons only appear if the application has a Git repository
+URL. Each operation shows a progress pop-up with an estimated duration and streams its
+output.
+
+### Deploying an application, step by step
+
+1. **Choose a branch** in the **Gitea branch** column.
+2. Click **📥 Clone**. The platform picks a server, clones the repository with its
+   submodules into
+   `/home/<LINUX_USER_INSTALLATION>/deployments/<your-username>/<application-name>`,
+   copies the SSL certificates and adds an nginx route for your copy.
+3. Click **▶️ Start**. The platform runs the application's `deployApp.sh start` script
+   in your copy, with your user ID, name and email. The container runtime chosen by the
+   administrator (`runc` or `kata`) is passed to the script.
+4. When the application is running, the **Open** button becomes active.
+5. Use **📊** for status, **📋** for logs, and **⏹️ Stop** when you are done.
+
+The dashboard checks each cloned application's status and adjusts the buttons:
+
+| State | Meaning |
+|-------|---------|
+| Not cloned | No copy yet: use Clone |
+| Cloned, running | Open is active; Stop / Restart / PS / Logs available |
+| Cloned, not running | Start available |
+| ⚠️ Not Compliant | Cloned, but the repository has no `deployApp.sh` (see [section 6](#6-make-app-compliant)) |
+
+### Application URL
+
+Each user gets their own copy of an application, reachable at:
+
+```
+https://<DOMAIN>/<username>/<application-name>/
+```
+
+Administrators can see this URL in the read-only field of the application edit form.
+Each copy gets 12 consecutive ports (6 HTTPS and 6 HTTP), calculated from your user ID
+and the application ID, and nginx proxies the URL above to those ports.
+
+---
+
+## 5. Virtual AI agents
+
+The **Virtual Agents** panel sits next to the dashboard. Use **−** to collapse it.
+
+1. Select one of your applications in the first drop-down. Only cloned applications can
+   be used.
+2. Select an action in the second drop-down. The available actions depend on the state
+   of the application:
+
+   | Application state | Actions offered |
+   |-------------------|-----------------|
+   | Running | STOP, PS, LOGS, MODIFY_CODE, SPECIFY, BACKUP Database |
+   | Not running | START, LOGS, MODIFY_CODE, SPECIFY, RESTORE Database |
+   | Not compliant | MAKE App. Compliant, LOGS |
+   | Not cloned | none |
+
+3. The text box is filled in with a request for that action. For MODIFY_CODE and SPECIFY,
+   add a plain-language description of what you want.
+4. Click **Send**. The agent's output streams into the panel.
+
+The agents fall into two groups:
+
+- **Virtual Developer** (MODIFY_CODE, SPECIFY). It runs an AI coding engine in your
+  copy of the application. SPECIFY produces a detailed specification. MODIFY_CODE changes
+  the code. After a successful MODIFY_CODE run, the change is pushed to a new Gitea
+  branch named `<user_id>-automorph-<application>-<timestamp>`, which then appears in
+  the **Gitea branch** drop-down. Runs stop after 30 minutes.
+- **Virtual Operations** (START, STOP, PS, LOGS, backup/restore, MAKE App. Compliant).
+  It runs the operation through the AI engine, using an action-specific prompt. START and
+  STOP requests sent through the agent are also recorded for billing. If the request
+  does not match a known action, the agent answers it as a question and does not run
+  anything.
+
+The AI engine (`kiro-cli`/`qchat` by default, or `shai`) is chosen by the
+administrator in **Settings**. For prompts, context files and API details, see
+`docs/technicals/VIRTUAL_AGENTS.md`.
+
+---
+
+## 6. MAKE App. Compliant
+
+To run on the platform, an application must have a `deployApp.sh` script at the root of
+its repository. The script must handle `start`, `stop`, `restart`, `ps` and `logs`, and
+accept the user ID, user name, user email and runtime type arguments
+(see [Architecture Guide](ARCHITECTURE_GUIDE.md)).
+
+If you clone a repository without this script:
+
+1. Its row shows a disabled **⚠️ Not Compliant** button instead of **Open**. Clone and
+   Logs stay available.
+2. Select the application in the Virtual Agents panel. The action list offers
+   **MAKE App. Compliant** and **LOGS**.
+3. Choose **MAKE App. Compliant**. The text box is filled with:
+   `I need an operations specialist to execute the [[MAKE_APP_COMPLIANT]] action on the application <app>`.
+4. Click **Send**. The Virtual Operations agent receives the request.
+
+Whether the agent actually generates a `deployApp.sh` depends on your installation: it
+needs a `MAKE_APP_COMPLIANT_context.md` prompt file in the platform's `shared/` folder.
+Without that file, the agent only answers the request as a question and creates nothing.
+Once a `deployApp.sh` is in the repository, clone again. The application then shows the
+normal Start/Stop buttons.
+
+---
+
+## 7. Serverless tab
+
+Run a one-off Docker job without deploying an application.
+
+1. **Target endpoint**: choose one of the running `opcp-serverless-*` endpoints listed
+   at the top of the tab. The list is empty if no serverless endpoint application is
+   running.
+2. **Image**: a container image from an allowed registry, for example
+   `python:3.11-slim`.
+3. **Command**: one command per line.
+4. Optional: **environment variables** (JSON) and a **timeout** in seconds.
+5. Click **Submit Job**.
+
+The **Jobs** list shows each job's state (`pending`, `running`, `completed`, `failed`,
+`timeout`, `cancelled`). Open a job to see its stdout and stderr, or cancel it.
+**Metrics** shows queue statistics (administrators only). See [Serverless](SERVERLESS.md) for limits and the
+API.
+
+---
+
+## 8. Marketplace tab
+
+The Marketplace lists the deploy templates enabled on the platform. The default catalog
+contains `static-site`, `fastapi-starter`, `n8n`, `ollama`, `jupyter` and `vector-db`
+(Qdrant).
+
+Choose a template, enter an application name and deploy. The platform registers the
+application for you, allocates its ports and adds the nginx route. The CLI, the MCP
+server and the REST API (`POST /api/templates/<template_id>/deploy`) use the same
+deployment service.
+
+---
+
+## 9. Sandbox tab
+
+The sandbox is a demo environment for trying the platform without affecting real users.
+
+- **Provision** creates a dedicated demo user (account type `sandbox demo`) and deploys
+  3 to 10 sample applications from the template catalog. If any step fails, everything
+  it created is removed. The API response (`POST /api/sandbox/provision`) contains the
+  demo credentials and one access URL per application. The tab itself only shows the
+  resulting status.
+- **Reset** removes the sample applications and deploys them again.
+- **Teardown** removes the sample applications, the demo user and their records.
+- **Status** shows whether a sandbox exists and the state of each sample application.
+
+Only resources marked as sandbox are affected.
+
+---
+
+## 10. Billing tab
+
+The Billing tab has two sub-tabs for all users, plus a third for administrators.
+
+- **Overview**: choose a period (today, this week, this month, previous month) to see a
+  **usage summary** (time and cost per application) and an **activity log** of
+  start/stop events. Administrators can also filter by user.
+- **Invoices**: lists your invoices. Each one can be downloaded as a PDF. If you have
+  unpaid invoices, a **Payment Required** pop-up appears once per browser session.
+  Administrators can generate an invoice for a user and month, and mark invoices as paid.
+- **Manage costs** (admins only): sets the daily rate of each application.
+
+Cost of a run = daily rate × running time (seconds) ÷ 86,400. A run is measured from a
+START to the matching STOP. Applications without a configured rate are billed at 1.0 per
+day.
+
+---
+
+## 11. Administration (admin only)
+
+A user has administrator rights if their username is `admin` (the built-in super admin)
+or their account type is `ADMIN`. Administrators see the **Configuration ▼** menu, the
+✏️/🗑️ buttons on applications, the **Add new application** button and the admin-only
+billing features.
+
+### Users
+
+- Create, edit and delete users.
+- **Apps**: assign applications to a user or remove them.
+- **Suspend / Unsuspend**. New self-registered accounts must be unsuspended here.
+- **Reset Password** emails a reset link to the user.
+- **Disable 2FA** (shown when the user has 2FA enabled).
+- **ADMIN / Revoke ADMIN**: grants or removes administrator rights (sets the account type
+  to `ADMIN`). Only the `admin` user sees this button. It is not offered for `admin`
+  itself or for accounts with another account type, such as sandbox demo users. Users
+  with administrator rights show an **ADMIN** badge.
+
+### Servers
+
+The Servers page lists the servers that host deployments. You can:
+
+- **Invite server** to add one. **🔍 DISCOVER** fills in its details automatically.
+- Set its status: `STAND_BY`, `ACTIVE`, `STAND_ALONE`, `PRIMARY` or `SECONDARY`.
+- Run **Synchronization**, **Promote PRIMARY** or **Promote SECONDARY** for multi-server
+  replication. See `docs/technicals/REPLICATION.md`.
+- Open **Shared-GPU** to manage NVIDIA MIG partitions. See
+  [Share GPU Docker](SHARE_GPU_DOCKER.md).
+
+### Applications Management
+
+Add, edit or delete catalog applications. Each application has a name, URL,
+description, Git repository URL, repository size, and estimated build/start/stop/ps
+durations, which the progress pop-ups use. **Download PDF** exports the list.
+
+### Deployments Management
+
+A table of every user's deployments. Filter by user, application or status. Each row
+shows its modification history (Virtual Developer branches) and backup history. Row
+actions: edit, delete, and **🔄 Update Nginx** to regenerate that deployment's route.
+See `docs/technicals/BACKUP_AND_RECOVERY.md` and `docs/technicals/NGINX_AND_DOMAINS.md`.
+
+### Orchestrator
+
+Create replicated services from an application's Git URL, with a desired replica count,
+environment variables (JSON) and a health check path. There are two deployment modes:
+one Docker replica per available server, or replica users on the current server. The page
+also shows services and their instances, and has **Generate Config** and **Reload Nginx**
+buttons. See `docs/technicals/ORCHESTRATOR.md`.
+
+### Database Management
+
+Browse and edit the main tables directly (users, applications, user_applications,
+deployments, servers, instances, services, costs, billing, logs, payment modes,
+invoicing): refresh, add, edit and delete records. Use with care. See
+`docs/technicals/DATABASE.md`.
+
+### Settings
+
+- **Container Runtime Type**: `runc` (default, standard Docker containers) or `kata`
+  (each container in a Kata Containers MicroVM, for stronger isolation). It applies to
+  application deployments and serverless jobs. Serverless workers read it when they
+  start, so restart them after a change.
+- **Configuration parameters**: a key/value table (with an optional parent key). The
+  default keys are:
+  - `agentic_engine`: AI engine for the virtual agents (default `kiro-cli`; `shai` is
+    also supported);
+  - `agentic_command`: if set, agent requests run
+    `deployControlPlan.sh <agentic_command>` instead of the AI engine;
+  - `runtime_type`: the same value as the selector above.
+
+---
+
+## 12. Troubleshooting
+
+| Symptom | What to check |
+|---------|---------------|
+| Cannot sign in after registering | New accounts are suspended. Ask an administrator to unsuspend you. |
+| Lost authenticator device | Use one of your backup codes, or ask an administrator to disable 2FA. |
+| Reset email never arrives | SMTP settings (`SMTP_*` environment variables) on the server. An administrator can get the reset link from the Users page. |
+| No Clone/Start buttons on an application | The application has no Git URL. Ask an administrator. |
+| ⚠️ Not Compliant | The repository lacks `deployApp.sh`. See [section 6](#6-make-app-compliant). |
+| Open button stays disabled | The application is not running. Check 📊 status and 📋 logs, then Start. |
+| Application URL returns 404/502 | The application is stopped or its nginx route is stale. An administrator can use **🔄 Update Nginx** in Deployments Management. |
+| Agent says the application must be cloned first | Clone it from the Applications tab. |
+| Agent answers as an advisor instead of acting | The action has no prompt file in `shared/`, or the request is not a recognized action. |
+| Serverless target list is empty | No `opcp-serverless-*` application is running. Start one. |
+| Interface in the wrong language | Click EN or FR in the navigation bar. |
+
+Administrators can find server-side logs in the platform's `logs/` folder
+(`gunicorn_error.log`, `api_routes.log`, `genai_routes.log`, `serverless_worker.log`,
+and others). See section 8, Logging, of the [Architecture Guide](ARCHITECTURE_GUIDE.md).
